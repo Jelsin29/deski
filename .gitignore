@@ -1,0 +1,35 @@
+# Local tooling and worktrees
+.atl/
+.worktrees/
+.codegraph/
+.DS_Store
+
+# JavaScript dependencies and generated output
+node_modules/
+.npm-cache/
+dist/
+build/
+coverage/
+*.tsbuildinfo
+npm-debug.log*
+
+# Environment files, credentials, and local secrets
+.env
+.env.*
+!.env.example
+secrets/
+*.pem
+*.key
+*.p12
+*.pfx
+
+# Python environments, caches, and generated metadata
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+*.egg-info/
