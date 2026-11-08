@@ -1,8 +1,10 @@
 # Deski backend
 
-Scaffold only: a FastAPI application with a deterministic health route. There is
-no database, AI/RAG implementation, authentication, token issuance, or desktop
-process orchestration.
+FastAPI HTTP contracts with a deterministic health route and injectable Chat,
+Document, Settings, and Token service boundaries. There is no database, AI/RAG
+implementation, authentication, credential storage, token issuance, or desktop
+process orchestration. Token means a provider credential, not an issued session
+or authentication token.
 
 ## Requirements and setup
 
@@ -25,6 +27,54 @@ future desktop integration must explicitly decide its permitted origins rather
 than enabling wildcard CORS. This unauthenticated development scaffold is not a
 production deployment configuration and must not be exposed to a network.
 
+## API contracts and teammate integration
+
+All routes use `/api/v1`. Health remains exactly HTTP 200 `{"status":"ok"}`.
+The approved team decision is to ship routers/contracts now without implementing
+teammates' use cases: every unwired service fails explicitly with HTTP 503,
+never a fabricated success. The ownership/503 comment is beside dependency
+wiring in `app/api/v1/dependencies.py`.
+
+| Operation | Input | Success with injected service (HTTP 200) |
+| --- | --- | --- |
+| `POST /chat` | `message`, optional `chat_id` | `chat_id`, `message` |
+| `POST /documents` | `document_name`, text `content` | `document_id`, `document_name` |
+| `GET /settings` | None | `provider`, `model` |
+| `PATCH /settings` | `provider` and/or `model` | Complete `provider`, `model` |
+| `PUT /tokens/{provider}` | Secret `api_key` | `provider`, `configured` only |
+
+Providers are `openai` and `anthropic` (Claude). Nonblank string bounds are:
+message 1–10,000 characters; IDs/model 1–128; document name 1–255; document
+content 1–1,000,000; API key 1–4,096. Strings are preserved, not trimmed. Request
+objects forbid unknown fields; only optional `chat_id` permits explicit null.
+Settings PATCH rejects empty objects and explicit null; omitted fields stay
+unchanged. Documents have no filesystem-path input.
+
+Missing-service bodies are `{"detail":"Chat service unavailable"}`,
+`{"detail":"Document service unavailable"}`,
+`{"detail":"Settings service unavailable"}`, and
+`{"detail":"Token service unavailable"}` (HTTP 503). Dependencies can fail
+before validation. With a service present, invalid input returns 422 before any
+service call. Ordinary FastAPI validation details are unchanged. Token-only
+validation returns `{"detail":"Invalid token request"}` without echoing input;
+token service HTTP errors discard headers/detail (503 as above; other statuses
+use `{"detail":"Token request failed"}`). Unexpected token errors return 500
+`{"detail":"Token service failed"}` without logging caught exceptions.
+Token trailing-slash paths never redirect or emit `Location`: PUT returns 400
+`{"detail":"Invalid token path"}`; other methods return 405 (HEAD has no body).
+This rejection guard never invokes services; non-token routing is unchanged.
+
+Keys use `SecretStr`, are not echoed, stored, verified, or sent to providers;
+there is no expiry assumption. OpenAPI contains no credential examples. Do not
+send secrets to other routes (their normal validation may echo input). This is
+still an unauthenticated development-only API.
+
+[Complete contracts and extension instructions](../../docs/api-contracts.md)
+describe bounds, errors, and service Protocols. Implement those async interfaces
+in teammate-owned modules, then replace the corresponding `get_*_service`
+wiring. Keep defaults at 503 until real services exist. Tests override these
+getters with fakes; no success fallback is enabled in the application.
+
 ## Checks
 
 ```sh
@@ -33,15 +83,18 @@ uv run --locked ruff check .
 uv run --locked ruff format --check .
 ```
 
-The health test uses httpx's ASGI transport in process; it does not start a server
-or exercise Electron, platform networking, or desktop/backend integration.
+The health and contract tests use httpx's ASGI transport in process; they do not
+start a server or exercise Electron, platform networking, or desktop/backend
+integration. Contract tests verify delegation through fake services, rejected
+inputs without service mutation, token redaction, and OpenAPI.
 `uv.lock` records runtime and development dependencies. Keep it committed and
 use locked sync/run commands for reproducibility; do not use pip.
 
 ## Responsibility boundaries
 
 - `app/main.py`: ASGI application composition and router registration.
-- `app/api/v1/`: versioned HTTP routes; keep transport concerns here.
+- `app/api/v1/`: central router, HTTP contracts, Protocols and dependency getters;
+  keep transport concerns here. These schemas are provisional boundary models.
 - `tests/`: observable API behavior through httpx's ASGI transport.
 
 The following boundaries are reserved, documented here instead of creating empty
@@ -51,7 +104,7 @@ modules. Create them only when real functionality needs them:
 | --- | --- |
 | `app/core/` | Validated settings and cross-cutting application policy |
 | `app/db/` | Database connections, persistence, and transaction boundaries |
-| `app/schemas/` | Request and response data contracts |
+| `app/schemas/` | Shared domain schemas if later needed beyond the API boundary |
 | `app/services/` | Application use cases independent of HTTP transport |
 | `app/rag/` | Retrieval and indexing workflows |
 | `app/llm/` | Model-provider adapters and model-call boundaries |
