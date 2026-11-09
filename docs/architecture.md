@@ -1,8 +1,8 @@
 # Architecture: foundation and next boundaries
 
 The current foundation has two separate applications. They do not communicate
-with each other yet. Paths below describe the combined tree after the independent
-app PRs merge; links to their READMEs are cross-PR dependencies.
+with each other yet. A root developer convenience command can start both; this
+is not desktop-managed backend integration.
 
 ## Current responsibilities
 
@@ -12,7 +12,9 @@ app PRs merge; links to their READMEs are cross-PR dependencies.
 | `apps/desktop/src/renderer/` | Static, framework-free TypeScript UI |
 | `apps/desktop/src/renderer/pages/` | Concrete scaffold page and safe title rendering |
 | `apps/backend/app/main.py` | FastAPI application composition and router registration |
-| `apps/backend/app/api/v1/` | HTTP transport, currently only the health endpoint |
+| `apps/backend/app/api/v1/` | Health and Chat/Document/Settings/Token contracts; unwired services return 503 |
+| `packages/api-types/` | Generated declarations from public `app.openapi()` |
+| `scripts/` | Local generation, developer process coordination, wheel build and fixture tests |
 | `docs/` | Architecture and AI-use records |
 
 Electron main is privileged; the renderer must remain separate from Node.js and
@@ -41,7 +43,8 @@ message validation, caller authorization, and error handling. Desktop-managed
 backend startup is also future work: define ownership, loopback binding,
 readiness checks, bounded startup/shutdown, crash handling, and cleanup so child
 processes do not outlive the app. A health response alone is not an integration
-security design. Today the developer starts and stops each application separately.
+security design. Today `npm run dev` only coordinates development processes;
+it adds no readiness handshake, IPC, renderer networking, or executable behavior.
 
 Create backend boundaries only when functionality needs them:
 
@@ -66,8 +69,9 @@ retrieval design likewise remain future work, not implied scaffold capabilities.
   contribution guidance, focused changes, and small PRs; not its mandatory
   approval labels, issue-approval process, or agent harness machinery.
 - [gentle-dot](https://github.com/Gentleman-Programming/gentle-dot): separation of
-  apps, packages, and docs as a growth pattern. Deski has no shared package yet;
-  its Tauri/Rust stack is not adopted.
+  apps, packages, and docs as a growth pattern. Deski's shared API-types package
+  is generated, not a second manually maintained HTTP contract; the reference's
+  Tauri/Rust stack is not adopted.
 - [gentle-shell](https://github.com/Gentleman-Programming/gentle-shell): a reference
   for organized project material, not a source of specialized assets to copy.
 
