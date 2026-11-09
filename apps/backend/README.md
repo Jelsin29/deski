@@ -90,6 +90,21 @@ inputs without service mutation, token redaction, and OpenAPI.
 `uv.lock` records runtime and development dependencies. Keep it committed and
 use locked sync/run commands for reproducibility; do not use pip.
 
+## Generated types and wheel packaging
+
+From the repository root, `npm run gen-types` derives TypeScript declarations
+from public `app.openapi()` without a server. `npm run gen-types:check` checks
+freshness without writing. `npm run build-backend` produces a Python wheel, not
+a standalone executable; `npm run build-backend -- --verify` inspects its contents
+and verifies installed health/503 behavior outside the source checkout. Packaging
+uses explicit app discovery and pinned Hatchling; uv now installs the app package
+instead of treating this directory as a non-package project.
+
+`npm run dev` is a developer-only coordinator for this loopback backend and the
+existing desktop build/launch, not backend/Electron integration. The desktop-only
+command remains `npm run dev:desktop`. Read [tooling details](../../docs/development-tooling.md)
+for exact commands, lifecycle guarantees, packaging limits, and unverified platforms.
+
 ## Responsibility boundaries
 
 - `app/main.py`: ASGI application composition and router registration.

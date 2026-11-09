@@ -2,13 +2,23 @@
   "name": "deski",
   "version": "0.1.0",
   "private": true,
-  "workspaces": ["apps/desktop"],
+  "workspaces": ["apps/desktop", "packages/api-types"],
   "engines": { "node": ">=22.12.0 <23", "npm": ">=10 <11" },
   "packageManager": "npm@10.9.9",
   "scripts": {
-    "dev": "npm run dev --workspace @deski/desktop",
+    "dev": "node scripts/dev.mjs",
+    "dev:desktop": "npm run dev --workspace @deski/desktop",
+    "gen-types": "node scripts/gen-types.mjs",
+    "gen-types:check": "node scripts/gen-types.mjs --check",
+    "build-backend": "node scripts/build-backend.mjs",
+    "test:tooling": "node --test scripts/test/*.test.mjs",
+    "typecheck:api": "tsc -p packages/api-types/tsconfig.json",
     "typecheck": "npm run typecheck --workspace @deski/desktop",
     "test": "npm run test --workspace @deski/desktop",
     "build": "npm run build --workspace @deski/desktop"
+  },
+  "devDependencies": {
+    "openapi-typescript": "7.10.1",
+    "typescript": "5.9.3"
   }
 }

@@ -25,13 +25,23 @@ not artificial commit counts or invented authorship.
    checks not run; do not describe untested runtime behavior as verified.
 5. Use Conventional Commits, such as `docs: explain local setup` or
    `feat: add a health endpoint`. Keep each commit a coherent, honest work unit.
-6. Open a focused PR to `main` using the template. Ask another teammate to review
+6. Open a focused PR to `main` using the template (or to its immediate parent
+   branch for an explicitly dependent stack). Ask another teammate to review
    intent, behavior, tests, and documentation; address their feedback.
 
 Do not make direct changes on `main`. Agents must not merge PRs or make direct
 `main` changes; human teammates own review and merge decisions. The initial three
-foundation PRs all independently target `main`; none depends on another PR's
-branch. App documentation links resolve only after the corresponding app PR merges.
+foundation PRs merged independently. The new backend contracts → tooling/types
+stack must be reviewed in that order; tooling depends on contract commit
+`c4d62a5`. Its PR targets the contract branch until that parent merges, then
+retargets `main`. No merge permission is implied.
+
+State the team decision in both delivery commit bodies and PR descriptions:
+unwired teammate-owned services deliberately return 503, never fake live success;
+health remains functional. Keep tests/docs with each behavior. The tooling is one
+cohesive slice because generation, packaging, lifecycle scripts, and their shared
+runner/tests depend on one another; report authored versus generated line counts
+rather than dropping tests to meet a size target.
 
 ## Checks before a PR
 
@@ -50,6 +60,18 @@ uv run --locked pytest
 uv run --locked ruff check .
 uv run --locked ruff format --check .
 ```
+
+For shared tooling changes, also run from the root:
+
+```sh
+npm run test:tooling
+npm run gen-types:check
+npm run typecheck:api
+npm run build-backend -- --verify
+```
+
+See [tooling details](docs/development-tooling.md) for artifact checks and platform
+limits. No real Electron launch or provider call is part of these tests.
 
 Use uv, not pip, for backend dependencies. Review dependency and lockfile changes
 explicitly. See the [root setup guide](README.md) and app READMEs linked there for

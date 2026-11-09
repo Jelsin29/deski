@@ -13,6 +13,10 @@ coverage/
 *.tsbuildinfo
 npm-debug.log*
 
+# Tooling fixtures and local uv cache (never packaged)
+scripts/.test-output/
+scripts/.cache/
+
 # Environment files, credentials, and local secrets
 .env
 .env.*
