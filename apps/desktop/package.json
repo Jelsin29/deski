@@ -6,6 +6,7 @@
   "main": "dist/main/main.js",
   "scripts": {
     "dev": "npm run build && electron .",
+    "dev:fake": "npm run build && electron . --fake-api",
     "typecheck": "tsc -p tsconfig.main.json --noEmit && tsc -p tsconfig.renderer.json --noEmit",
     "test": "node --experimental-strip-types --test test/*.test.mjs",
     "build": "tsc -p tsconfig.main.json && tsc -p tsconfig.renderer.json && node scripts/copy-assets.mjs"
