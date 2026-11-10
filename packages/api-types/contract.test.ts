@@ -28,4 +28,13 @@ export type TokenValidationError = Assert<Equal<JsonError<
 
 export type CurrentPaths = Assert<Equal<keyof paths,
   '/api/v1/health' | '/api/v1/chat' | '/api/v1/documents' |
-  '/api/v1/settings' | '/api/v1/tokens/{provider}'>>;
+  '/api/v1/settings' | '/api/v1/tokens/{provider}' | '/api/v1/tokens' |
+  '/api/v1/chats' | '/api/v1/chats/{chat_id}' | '/api/v1/chats/{chat_id}/messages'>>;
+export type DocumentIds = Assert<Equal<components['schemas']['ChatRequest']['document_ids'],
+  string[] | undefined>>;
+export type HistoryRoles = Assert<Equal<components['schemas']['HistoryMessage']['role'],
+  'user' | 'assistant'>>;
+export type TokenMetadata = Assert<Equal<JsonError<
+  paths['/api/v1/tokens']['get']['responses'][200]>, components['schemas']['TokenResponse'][]>>;
+export type DeleteBody = Assert<Equal<
+  paths['/api/v1/chats/{chat_id}']['delete']['responses'][204]['content'], undefined>>;

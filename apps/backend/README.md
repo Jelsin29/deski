@@ -1,7 +1,7 @@
 # Deski backend
 
 FastAPI HTTP contracts with a deterministic health route and injectable Chat,
-Document, Settings, and Token service boundaries. There is no database, AI/RAG
+History, Document, Settings, and Token service boundaries. There is no database, AI/RAG
 implementation, authentication, credential storage, token issuance, or desktop
 process orchestration. Token means a provider credential, not an issued session
 or authentication token.
@@ -37,7 +37,11 @@ wiring in `app/api/v1/dependencies.py`.
 
 | Operation | Input | Success with injected service (HTTP 200) |
 | --- | --- | --- |
-| `POST /chat` | `message`, optional `chat_id` | `chat_id`, `message` |
+| `POST /chat` | `message`, optional `chat_id`, `document_ids` (default []) | `chat_id`, `message` |
+| `GET /chats` | None | Chat summaries, newest updated first |
+| `GET /chats/{chat_id}/messages` | Chat ID | Messages/documents, oldest created first |
+| `DELETE /chats/{chat_id}` | Chat ID | **204**, no body (404 if missing) |
+| `GET /tokens` | None | Metadata for openai and anthropic; never keys |
 | `POST /documents` | `document_name`, text `content` | `document_id`, `document_name` |
 | `GET /settings` | None | `provider`, `model` |
 | `PATCH /settings` | `provider` and/or `model` | Complete `provider`, `model` |
@@ -51,6 +55,7 @@ Settings PATCH rejects empty objects and explicit null; omitted fields stay
 unchanged. Documents have no filesystem-path input.
 
 Missing-service bodies are `{"detail":"Chat service unavailable"}`,
+`{"detail":"History service unavailable"}`,
 `{"detail":"Document service unavailable"}`,
 `{"detail":"Settings service unavailable"}`, and
 `{"detail":"Token service unavailable"}` (HTTP 503). Dependencies can fail
@@ -66,9 +71,19 @@ Token-only validation returns `{"detail":"Invalid token request"}` without
 echoing input; token service HTTP errors discard headers/detail (503 as above; other statuses
 use `{"detail":"Token request failed"}`). Unexpected token errors return 500
 `{"detail":"Token service failed"}` without logging caught exceptions.
-Token trailing-slash paths never redirect or emit `Location`: PUT returns 400
-`{"detail":"Invalid token path"}`; other methods return 405 (HEAD has no body).
-This rejection guard never invokes services; non-token routing is unchanged.
+Token provider trailing-slash paths never redirect or emit `Location`: PUT returns
+400 `{"detail":"Invalid token path"}`; other methods return 405 (HEAD has no body).
+Collection slash-only paths (`/tokens/`, `/tokens//`, etc.) instead preserve 404
+`{"detail":"Not Found"}` for GET/PUT/POST/DELETE/HEAD/OPTIONS (HEAD body empty),
+without redirects or `Location` even with credential-bearing query strings.
+These rejection guards never invoke dependencies/services; provider routes and
+non-token routing are unchanged.
+
+History dates are timezone-aware and normalized to UTC ISO8601 by the adapter,
+which also guarantees ordering. Empty titles are allowed (max 80 characters).
+Services own title generation/persistence, unknown-document 422 validation before
+mutation, missing-chat 404, and deletion of messages/associations without removing
+documents/files. None of these storage effects is implemented. SSE is deferred.
 
 Keys use `SecretStr`, are not echoed, stored, verified, or sent to providers;
 there is no expiry assumption. OpenAPI contains no credential examples. Do not

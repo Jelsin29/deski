@@ -371,8 +371,8 @@ def test_chat_delegates_and_rejects_invalid_input():
             assert response.status_code == 200
             assert response.json() == {"chat_id": "conversation", "message": "Reply"}
         assert calls == [
-            {"message": "H", "chat_id": None},
-            {"message": "Hi", "chat_id": "old"},
+            {"message": "H", "chat_id": None, "document_ids": []},
+            {"message": "Hi", "chat_id": "old", "document_ids": []},
         ]
         for payload in [
             {},
@@ -393,10 +393,14 @@ def test_chat_delegates_and_rejects_invalid_input():
         )
         assert response.status_code == 200
         assert response.json() == {"chat_id": "conversation", "message": "Reply"}
-        assert calls[-1] == {"message": "x" * 10000, "chat_id": "i" * 128}
+        assert calls[-1] == {
+            "message": "x" * 10000,
+            "chat_id": "i" * 128,
+            "document_ids": [],
+        }
         response = request("POST", "/chat", json={"message": "H", "chat_id": None})
         assert response.status_code == 200
         assert response.json() == {"chat_id": "conversation", "message": "Reply"}
-        assert calls[-1] == {"message": "H", "chat_id": None}
+        assert calls[-1] == {"message": "H", "chat_id": None, "document_ids": []}
     finally:
         app.dependency_overrides.clear()

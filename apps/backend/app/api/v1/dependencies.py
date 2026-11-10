@@ -5,8 +5,10 @@ from fastapi import HTTPException
 from app.api.v1.contracts import (
     ChatRequest,
     ChatResponse,
+    ChatSummary,
     DocumentRequest,
     DocumentResponse,
+    HistoryMessage,
     Provider,
     SettingsPatch,
     SettingsResponse,
@@ -17,6 +19,14 @@ from app.api.v1.contracts import (
 
 class ChatService(Protocol):
     async def send(self, payload: ChatRequest) -> ChatResponse: ...
+
+
+class HistoryService(Protocol):
+    async def list_chats(self) -> list[ChatSummary]: ...
+
+    async def messages(self, chat_id: str) -> list[HistoryMessage]: ...
+
+    async def delete(self, chat_id: str) -> None: ...
 
 
 class DocumentService(Protocol):
@@ -30,6 +40,8 @@ class SettingsService(Protocol):
 
 
 class TokenService(Protocol):
+    async def status(self) -> list[TokenResponse]: ...
+
     async def configure(
         self, provider: Provider, payload: TokenRequest
     ) -> TokenResponse: ...
@@ -39,6 +51,10 @@ class TokenService(Protocol):
 # Until those services are wired here, fail with 503, never fabricated success.
 def get_chat_service() -> ChatService:
     raise HTTPException(status_code=503, detail="Chat service unavailable")
+
+
+def get_history_service() -> HistoryService:
+    raise HTTPException(status_code=503, detail="History service unavailable")
 
 
 def get_document_service() -> DocumentService:

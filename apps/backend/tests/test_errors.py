@@ -114,7 +114,8 @@ def test_openapi_error_contract_is_string_detail():
                 assert operation["responses"][status]["content"]["application/json"][
                     "schema"
                 ] == {"$ref": "#/components/schemas/ErrorResponse"}, path
-    assert schema["components"]["schemas"]["ErrorResponse"]["properties"]["detail"][
-        "type"
-    ] == "string"
+    assert (
+        schema["components"]["schemas"]["ErrorResponse"]["properties"]["detail"]["type"]
+        == "string"
+    )
     assert "HTTPValidationError" not in schema["components"]["schemas"]

@@ -20,10 +20,12 @@ from app.api.v1.dependencies import (
     get_settings_service,
 )
 from app.api.v1.health import router as health_router
+from app.api.v1.history import router as history_router
 from app.api.v1.tokens import router as token_router
 
 router = APIRouter()
 router.include_router(health_router)
+router.include_router(history_router)
 router.include_router(token_router)
 
 # Describe unavailable integrations without adding a shared runtime error handler.
