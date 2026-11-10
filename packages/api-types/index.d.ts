@@ -17,6 +17,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/chat/stream": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Stream Chat
+         * @description POST SSE: start, delta*, done or error. Schema describes decoded events.
+         */
+        post: operations["stream_chat_api_v1_chat_stream_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/chats": {
         parameters: {
             query?: never;
@@ -242,6 +262,66 @@ export interface components {
             model: string;
             provider: components["schemas"]["Provider"];
         };
+        /** StreamDelta */
+        StreamDelta: {
+            data: components["schemas"]["StreamDeltaData"];
+            /**
+             * Event
+             * @default delta
+             * @constant
+             */
+            event: "delta";
+        };
+        /** StreamDeltaData */
+        StreamDeltaData: {
+            /** Text */
+            text: string;
+        };
+        /** StreamDone */
+        StreamDone: {
+            data: components["schemas"]["StreamDoneData"];
+            /**
+             * Event
+             * @default done
+             * @constant
+             */
+            event: "done";
+        };
+        /** StreamDoneData */
+        StreamDoneData: {
+            /** Message Id */
+            message_id: string;
+        };
+        /** StreamError */
+        StreamError: {
+            data: components["schemas"]["StreamErrorData"];
+            /**
+             * Event
+             * @default error
+             * @constant
+             */
+            event: "error";
+        };
+        /** StreamErrorData */
+        StreamErrorData: {
+            /** Detail */
+            detail: string;
+        };
+        /** StreamStart */
+        StreamStart: {
+            data: components["schemas"]["StreamStartData"];
+            /**
+             * Event
+             * @default start
+             * @constant
+             */
+            event: "start";
+        };
+        /** StreamStartData */
+        StreamStartData: {
+            /** Chat Id */
+            chat_id: string;
+        };
         /** TokenRequest */
         TokenRequest: {
             /**
@@ -285,6 +365,57 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ChatResponse"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    stream_chat_api_v1_chat_stream_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ChatRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/event-stream": components["schemas"]["StreamStart"] | components["schemas"]["StreamDelta"] | components["schemas"]["StreamDone"] | components["schemas"]["StreamError"];
                 };
             };
             /** @description Unprocessable Entity */

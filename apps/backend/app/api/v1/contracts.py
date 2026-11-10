@@ -47,6 +47,47 @@ class ChatResponse(BaseModel):
     message: NonblankMessage
 
 
+class StreamStartData(RequestModel):
+    chat_id: OpaqueId
+
+
+class StreamDeltaData(RequestModel):
+    text: str = Field(strict=True, max_length=10000)
+
+
+class StreamDoneData(RequestModel):
+    message_id: OpaqueId
+
+
+class StreamErrorData(RequestModel):
+    detail: str = Field(strict=True, max_length=10000)
+
+
+class StreamStart(RequestModel):
+    event: Literal["start"] = "start"
+    data: StreamStartData
+
+
+class StreamDelta(RequestModel):
+    event: Literal["delta"] = "delta"
+    data: StreamDeltaData
+
+
+class StreamDone(RequestModel):
+    event: Literal["done"] = "done"
+    data: StreamDoneData
+
+
+class StreamError(RequestModel):
+    event: Literal["error"] = "error"
+    data: StreamErrorData
+
+
+ChatStreamEvent = Annotated[
+    StreamStart | StreamDelta | StreamDone | StreamError, Field(discriminator="event")
+]
+
+
 class DocumentRequest(RequestModel):
     document_name: DocumentName
     content: DocumentContent

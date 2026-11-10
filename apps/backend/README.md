@@ -38,6 +38,7 @@ wiring in `app/api/v1/dependencies.py`.
 | Operation | Input | Success with injected service (HTTP 200) |
 | --- | --- | --- |
 | `POST /chat` | `message`, optional `chat_id`, `document_ids` (default []) | `chat_id`, `message` |
+| `POST /chat/stream` | Same as POST /chat | POST SSE: start, delta*, done or error |
 | `GET /chats` | None | Chat summaries, newest updated first |
 | `GET /chats/{chat_id}/messages` | Chat ID | Messages/documents, oldest created first |
 | `DELETE /chats/{chat_id}` | Chat ID | **204**, no body (404 if missing) |
@@ -83,7 +84,17 @@ History dates are timezone-aware and normalized to UTC ISO8601 by the adapter,
 which also guarantees ordering. Empty titles are allowed (max 80 characters).
 Services own title generation/persistence, unknown-document 422 validation before
 mutation, missing-chat 404, and deletion of messages/associations without removing
-documents/files. None of these storage effects is implemented. SSE is deferred.
+documents/files. None of these storage effects is implemented.
+
+POST `/chat/stream` uses a separate `ChatStreamService.open` async-generator seam;
+missing wiring returns the same Chat 503. Acquisition and the first start event
+are preflighted before HTTP 200. Success is `text/event-stream`, with blank-line
+framed `event:` and JSON `data:` lines. Events carry start `{chat_id}`, delta
+`{text}`, done `{message_id}`, or error `{detail}`. After start all failures use
+fixed `Chat stream failed` detail and close, without a subsequent done. Done is
+also terminal; disconnect/cancellation closes the upstream generator and
+propagates cancellation. No provider/network/persistence implementation is added.
+See the complete contracts for producer obligations, bounds, and framing types.
 
 Keys use `SecretStr`, are not echoed, stored, verified, or sent to providers;
 there is no expiry assumption. OpenAPI contains no credential examples. Do not

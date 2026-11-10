@@ -1,3 +1,4 @@
+from collections.abc import AsyncGenerator
 from typing import Protocol
 
 from fastapi import HTTPException
@@ -5,6 +6,7 @@ from fastapi import HTTPException
 from app.api.v1.contracts import (
     ChatRequest,
     ChatResponse,
+    ChatStreamEvent,
     ChatSummary,
     DocumentRequest,
     DocumentResponse,
@@ -19,6 +21,14 @@ from app.api.v1.contracts import (
 
 class ChatService(Protocol):
     async def send(self, payload: ChatRequest) -> ChatResponse: ...
+
+
+class ChatStreamService(Protocol):
+    # Validate all document IDs before mutation; acquire before HTTP 200.
+    # Producer: start, delta*, done|error; release resources in finally.
+    async def open(
+        self, payload: ChatRequest
+    ) -> AsyncGenerator[ChatStreamEvent, None]: ...
 
 
 class HistoryService(Protocol):
@@ -50,6 +60,10 @@ class TokenService(Protocol):
 # Approved team boundary: teammates own use cases, persistence and provider calls.
 # Until those services are wired here, fail with 503, never fabricated success.
 def get_chat_service() -> ChatService:
+    raise HTTPException(status_code=503, detail="Chat service unavailable")
+
+
+def get_chat_stream_service() -> ChatStreamService:
     raise HTTPException(status_code=503, detail="Chat service unavailable")
 
 

@@ -1,7 +1,8 @@
 # Backend API contracts
 
 These provisional contracts belong to the HTTP boundary, not to implemented use
-cases. All paths below have prefix `/api/v1`. JSON is the request/response format.
+cases. All paths below have prefix `/api/v1`. JSON is the request/response format
+except the POST SSE response described below.
 Only Health works without an injected service; the other operations return 503,
 not simulated success. No persistence, credential storage, document indexing,
 provider calls, authentication, or credential verification is implemented.
@@ -12,6 +13,7 @@ provider calls, authentication, or credential verification is implemented.
 | --- | --- | --- |
 | `GET /health` | None | `{"status":"ok"}` |
 | `POST /chat` | Required `message: string`; optional `chat_id: string or null` (default null), `document_ids: string[]` (default []) | `chat_id: string`, `message: string` |
+| `POST /chat/stream` | Same `ChatRequest` as POST /chat | SSE `start`, `delta*`, `done` or `error` |
 | `GET /chats` | None | `ChatSummary[]`, newest updated first |
 | `GET /chats/{chat_id}/messages` | Opaque chat ID | `HistoryMessage[]`, oldest created first |
 | `DELETE /chats/{chat_id}` | Opaque chat ID | HTTP **204**, no body |
@@ -69,10 +71,54 @@ No deletion, generation or persistence is implemented here.
 `ChatService.send` must validate all document IDs before any mutation and raise
 422 `{"detail":"Unknown document ID"}` for unknown IDs. The adapter validates
 ID syntax only; document existence is service-owned. `document_ids` is non-null,
-with no additional count/uniqueness restriction. POST streaming and GET /models
-are not delivered yet. `TokenService.status` supplies exactly one metadata item
+with no additional count/uniqueness restriction. GET /models is not delivered. `TokenService.status` supplies exactly one metadata item
 per provider; the guarded HTTP adapter emits openai then anthropic, filtering
 undeclared fields and rejecting missing/duplicate/invalid provider results safely.
+
+## POST streaming producer and terminal contract
+
+Use POST fetch with the same JSON `ChatRequest`, including optional `document_ids`
+(default `[]`), not EventSource or WebSocket. Success is HTTP 200 with
+`Content-Type: text/event-stream; charset=utf-8`. Each frame is `event: <name>`,
+newline, `data: <compact JSON>`, then a blank line. For example:
+
+```text
+event: start
+data: {"chat_id":"c_42"}
+
+event: delta
+data: {"text":"Merha"}
+
+event: done
+data: {"message_id":"m_9"}
+
+```
+
+`ChatStreamService.open(ChatRequest)` asynchronously acquires an async generator.
+It must validate document existence before mutation (unknown ID: HTTP 422
+`{"detail":"Unknown document ID"}`), and raise known unavailability as HTTP 503.
+The adapter awaits acquisition AND the first valid `StreamStart` before committing
+200; HTTP errors there remain JSON HTTP errors. Empty/invalid initial streams and
+unexpected acquisition failures return safe 503 `{"detail":"Chat service unavailable"}`.
+Missing streaming wiring uses that same 503. Existing validation rules apply.
+
+Producer order is exactly one `StreamStart`, zero or more `StreamDelta`, then one
+`StreamDone` or `StreamError`. Payloads are respectively `{chat_id}`, `{text}`,
+`{message_id}`, `{detail}`. IDs reuse opaque-ID bounds; each delta/error text has a
+10,000-character ceiling (empty allowed). JSON escaping prevents embedded CR/LF,
+quotes or backslashes from injecting frames. The adapter pulls one event at a
+time without accumulating the response. It validates payloads and order.
+After start, exceptions, premature exhaustion, repeated start, invalid events or
+producer error emit exactly `error {"detail":"Chat stream failed"}` then close;
+producer error detail is never forwarded or logged. Done and error are terminal:
+no further upstream event is read, and no done follows error. Cancellation is
+not converted to an error frame; disconnect/cancellation closes the upstream
+generator, whose `finally` must release resources. Cleanup exceptions are not
+exposed. Services must propagate cancellation and keep cleanup finite; the
+adapter provides no timeout, heartbeat, persistence rollback or provider logic.
+OpenAPI advertises only `text/event-stream` for 200; its union describes decoded
+`{event,data}` frames, NOT a JSON response envelope. Generated TS exposes all four
+event/payload models; consumers must parse SSE framing before decoding data.
 
 ## Errors and secret handling
 
@@ -144,6 +190,7 @@ Health route stays independent of services.
 Implement the corresponding asynchronous Protocol outside the HTTP layer:
 
 - `ChatService.send(ChatRequest) -> ChatResponse`
+- `ChatStreamService.open(ChatRequest) -> AsyncGenerator[ChatStreamEvent, None]`
 - `HistoryService.list_chats() -> list[ChatSummary]`
 - `HistoryService.messages(chat_id: str) -> list[HistoryMessage]`
 - `HistoryService.delete(chat_id: str) -> None`
