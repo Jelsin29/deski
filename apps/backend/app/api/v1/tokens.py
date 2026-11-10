@@ -60,7 +60,17 @@ async def reject_token_collection_slash(request: Request, suffix: str) -> Respon
 router.add_api_route(
     "/tokens/{suffix:path}",
     reject_token_collection_slash,
-    methods=["GET", "PUT", "POST", "DELETE", "HEAD", "OPTIONS"],
+    methods=[
+        "GET",
+        "PUT",
+        "POST",
+        "DELETE",
+        "HEAD",
+        "OPTIONS",
+        "PATCH",
+        "TRACE",
+        "CONNECT",
+    ],
     include_in_schema=False,
     route_class_override=CollectionSlashRoute,
 )

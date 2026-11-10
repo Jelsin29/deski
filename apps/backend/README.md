@@ -75,7 +75,8 @@ use `{"detail":"Token request failed"}`). Unexpected token errors return 500
 Token provider trailing-slash paths never redirect or emit `Location`: PUT returns
 400 `{"detail":"Invalid token path"}`; other methods return 405 (HEAD has no body).
 Collection slash-only paths (`/tokens/`, `/tokens//`, etc.) instead preserve 404
-`{"detail":"Not Found"}` for GET/PUT/POST/DELETE/HEAD/OPTIONS (HEAD body empty),
+`{"detail":"Not Found"}` for GET/PUT/POST/DELETE/HEAD/OPTIONS/PATCH/TRACE/CONNECT
+(HEAD body empty),
 without redirects or `Location` even with credential-bearing query strings.
 These rejection guards never invoke dependencies/services; provider routes and
 non-token routing are unchanged.

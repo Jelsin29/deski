@@ -5,7 +5,10 @@ from app.api.v1.dependencies import get_token_service
 from app.main import app
 
 
-@pytest.mark.parametrize("method", ["GET", "PUT", "POST", "DELETE", "HEAD", "OPTIONS"])
+@pytest.mark.parametrize(
+    "method",
+    ["GET", "PUT", "POST", "DELETE", "HEAD", "OPTIONS", "PATCH", "TRACE", "CONNECT"],
+)
 @pytest.mark.parametrize("suffix", ["/", "//", "///"])
 def test_token_collection_slashes_never_redirect_or_call_service(
     method, suffix, caplog

@@ -153,8 +153,9 @@ This transport-only token suffix guard is excluded from OpenAPI and invokes no
 service. Other suffixes remain invalid (PUT returns a fixed 404; other methods
 return 405). Collection paths `/tokens/`, `/tokens//`, and further slash-only
 suffixes preserve HTTP 404 `{"detail":"Not Found"}` for GET, PUT, POST, DELETE,
-HEAD, and OPTIONS (HEAD has no body). They never redirect, emit `Location`, or
-invoke token dependencies/services, including when query strings contain secrets.
+HEAD, OPTIONS, PATCH, TRACE, and CONNECT (HEAD has no body). They never redirect,
+emit `Location`, or invoke token dependencies/services, including when query strings
+contain secrets.
 The collection guard matches slash-only suffixes, leaving provider routes intact.
 Non-token slash-routing behavior is unchanged.
 
