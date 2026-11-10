@@ -8,8 +8,10 @@
     "strict": true,
     "noUncheckedIndexedAccess": true,
     "noEmitOnError": true,
-    "rootDir": "src/main",
-    "outDir": "dist/main"
+    "rewriteRelativeImportExtensions": true,
+    "erasableSyntaxOnly": true,
+    "rootDir": "src",
+    "outDir": "dist"
   },
-  "include": ["src/main/**/*.ts"]
+  "include": ["src/main/**/*.ts", "src/preload/**/*.cts", "src/shared/**/*.d.ts"]
 }
