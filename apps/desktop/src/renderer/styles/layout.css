@@ -4,6 +4,9 @@
 .app {
   display: grid;
   grid-template-columns: var(--sidebar-width) minmax(0, 1fr);
+  /* An auto row would grow with its content and push it past the window,
+     so the inner scroll areas (messages, settings) would never scroll. */
+  grid-template-rows: minmax(0, 1fr);
   height: 100vh;
   transition: grid-template-columns var(--duration) var(--easing);
 }
