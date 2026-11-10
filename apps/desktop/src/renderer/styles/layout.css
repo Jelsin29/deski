@@ -57,8 +57,11 @@
   padding: 0 var(--space-4);
 }
 
+/* On macOS the traffic lights own the top row, so the brand sits below them. */
 :root[data-platform="darwin"] .sidebar__header {
-  padding-left: var(--traffic-light-inset);
+  height: auto;
+  padding-top: calc(var(--titlebar-height) - var(--space-2));
+  padding-bottom: var(--space-3);
 }
 
 .sidebar__wordmark {
