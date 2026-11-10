@@ -55,9 +55,15 @@ Missing-service bodies are `{"detail":"Chat service unavailable"}`,
 `{"detail":"Settings service unavailable"}`, and
 `{"detail":"Token service unavailable"}` (HTTP 503). Dependencies can fail
 before validation. With a service present, invalid input returns 422 before any
-service call. Ordinary FastAPI validation details are unchanged. Token-only
-validation returns `{"detail":"Invalid token request"}` without echoing input;
-token service HTTP errors discard headers/detail (503 as above; other statuses
+service call. Ordinary validation returns `{"detail":"Invalid request"}` without
+input/context. All JSON errors use string `detail`: ordinary HTTP exceptions keep
+status, headers and intentional string detail; non-string detail becomes
+`{"detail":"Request failed"}`. Unexpected errors (including invalid service
+responses) return HTTP 500 `{"detail":"Internal server error"}` without details
+or logging by the handler. Services must keep intentional HTTP messages/headers
+safe. OpenAPI and generated TypeScript describe the string 422/500 bodies.
+Token-only validation returns `{"detail":"Invalid token request"}` without
+echoing input; token service HTTP errors discard headers/detail (503 as above; other statuses
 use `{"detail":"Token request failed"}`). Unexpected token errors return 500
 `{"detail":"Token service failed"}` without logging caught exceptions.
 Token trailing-slash paths never redirect or emit `Location`: PUT returns 400
@@ -66,8 +72,9 @@ This rejection guard never invokes services; non-token routing is unchanged.
 
 Keys use `SecretStr`, are not echoed, stored, verified, or sent to providers;
 there is no expiry assumption. OpenAPI contains no credential examples. Do not
-send secrets to other routes (their normal validation may echo input). This is
-still an unauthenticated development-only API.
+send secrets to other routes: validation is redacted, but their successful
+responses or intentional service HTTP errors are not credential boundaries.
+This is still an unauthenticated development-only API.
 
 [Complete contracts and extension instructions](../../docs/api-contracts.md)
 describe bounds, errors, and service Protocols. Implement those async interfaces

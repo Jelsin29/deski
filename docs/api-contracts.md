@@ -56,11 +56,19 @@ Missing service dependencies raise HTTP 503 with these exact JSON bodies:
 
 Dependencies may fail before body validation; an unavailable service can therefore
 produce 503 even for an invalid request. With a service wired, invalid input is
-422 and is rejected before calling the service. Non-token routes retain standard
-FastAPI validation: `{"detail":[...]}`, with error `type`, `loc`, `msg`, `input`
-and, where applicable, `ctx`. This can echo ordinary non-token input: do not send
-credentials to chat, documents or settings. Non-token service failures retain
-FastAPI's ordinary exception behavior; no global error wrapper is installed.
+422 and is rejected before calling the service. Ordinary validation (including
+malformed JSON) now returns only `{"detail":"Invalid request"}`. Validation
+inputs, locations and context are not echoed. All JSON error bodies have a string
+`detail`; clients must no longer expect FastAPI's validation arrays.
+
+Ordinary HTTP exceptions preserve status codes, headers and intentional string
+detail (including the 503 messages above). Non-string detail becomes
+`{"detail":"Request failed"}` rather than stringifying potentially sensitive data.
+Unexpected exceptions, including invalid service responses, return HTTP 500
+`{"detail":"Internal server error"}` without exception details or logging by this
+handler. Services must keep intentional HTTP messages/headers safe for clients.
+OpenAPI describes 422 and 500 with `ErrorResponse`; regenerate TypeScript with
+`npm run gen-types`. Health remains exactly HTTP 200 `{"status":"ok"}`.
 
 Token paths with one or more trailing slashes are rejected without redirects or
 `Location` headers: PUT returns HTTP 400 `{"detail":"Invalid token path"}`; other methods
@@ -75,8 +83,9 @@ Token service HTTP exceptions keep their status but discard detail and headers:
 503 uses the unavailable body above; other statuses use
 `{"detail":"Token request failed"}`. Unexpected exceptions, including invalid
 service responses, return HTTP 500 `{"detail":"Token service failed"}`. This
-boundary does not log request bodies or caught exceptions. Health and unrelated
-validation handlers are unchanged.
+boundary does not log request bodies or caught exceptions. Its existing route
+handler and path guard take precedence over the ordinary error policy; token
+messages and header redaction are unchanged.
 
 `api_key` uses Pydantic `SecretStr`; OpenAPI marks it write-only/password and
 contains no credential examples. Plaintext is accessible to the future service
