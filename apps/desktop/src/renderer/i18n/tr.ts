@@ -1,0 +1,81 @@
+// Every user-facing string lives here so wording stays consistent.
+export const tr = {
+  app: {
+    name: 'Deski',
+  },
+  sidebar: {
+    newChat: 'Yeni sohbet',
+    settings: 'Ayarlar',
+    empty: 'Henüz sohbet yok.',
+    deleteChat: 'Sohbeti sil',
+    confirmDelete: (title: string) => `“${title}” sohbeti silinsin mi?`,
+    toggle: 'Kenar çubuğunu aç/kapat',
+    groups: {
+      today: 'Bugün',
+      yesterday: 'Dün',
+      previous7Days: 'Önceki 7 gün',
+      older: 'Daha eski',
+    },
+  },
+  chat: {
+    greeting: 'Size nasıl yardımcı olabilirim?',
+    greetingHint: 'Bir soru sorun ya da yanıtlarda kullanılması için belge ekleyin.',
+    placeholder: 'Bir mesaj yazın…',
+    send: 'Gönder',
+    attach: 'Dosya ekle',
+    removeAttachment: (name: string) => `${name} dosyasını kaldır`,
+    dropFiles: 'Dosyaları eklemek için bırakın',
+    thinking: 'Yanıt hazırlanıyor',
+    demoBadge: 'Demo',
+    demoHint: 'Yanıtlar sahte API tarafından üretiliyor.',
+    disclaimer: 'Enter ile gönderin, Shift + Enter ile yeni satıra geçin.',
+  },
+  attachments: {
+    tooLarge: (name: string) => `${name} çok büyük. En fazla 1 MB metin eklenebilir.`,
+    notText: (name: string) => `${name} bir metin dosyası değil.`,
+    empty: (name: string) => `${name} boş.`,
+    unreadable: (name: string) => `${name} okunamadı.`,
+  },
+  settings: {
+    title: 'Ayarlar',
+    back: 'Sohbete dön',
+    backend: {
+      label: 'Backend',
+      connected: 'Bağlı',
+      disconnected: 'Bağlantı yok',
+      checking: 'Kontrol ediliyor',
+      fake: 'Demo (sahte API)',
+    },
+    provider: {
+      title: 'Yapay zekâ sağlayıcısı',
+      description: 'Sohbetlerin yanıtlanmasında kullanılacak sağlayıcıyı ve modeli seçin.',
+      anthropic: 'Claude modelleri',
+      openai: 'GPT modelleri',
+      model: 'Model',
+      modelHint: 'Listeden seçin ya da model adını yazın.',
+      save: 'Kaydet',
+      saved: 'Sağlayıcı ayarları kaydedildi.',
+    },
+    token: {
+      title: 'API anahtarı',
+      description: (provider: string) =>
+        `${provider} için API anahtarınızı girin. Anahtar yalnızca yerel backend'e iletilir; arayüzde saklanmaz.`,
+      label: 'API anahtarı',
+      save: 'Anahtarı kaydet',
+      saved: (provider: string) => `${provider} anahtarı kaydedildi.`,
+    },
+    appearance: {
+      title: 'Görünüm',
+      description: 'Uygulamanın renk temasını seçin.',
+      system: 'Sistem',
+      light: 'Açık',
+      dark: 'Koyu',
+    },
+  },
+  errors: {
+    offline: "Backend'e ulaşılamıyor. Sunucunun çalıştığından emin olun.",
+    unavailable: 'Bu servis henüz hazır değil.',
+    invalid: 'İstek geçersiz.',
+    failed: 'Beklenmeyen bir hata oluştu.',
+  },
+} as const;
