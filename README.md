@@ -61,7 +61,7 @@ return HTTP 503, never fake success.
 
 | Available foundation | Planned, not implemented |
 | --- | --- |
-| Local Electron window and static TypeScript page | Preload/IPC bridge and backend process management |
+| Electron chat UI with a validated preload/IPC bridge to the backend | Desktop-managed backend process startup |
 | FastAPI contracts, liveness, and in-process tests | SQLite persistence, schema changes, and application services |
 | Generated OpenAPI TypeScript types and Python wheel build | Standalone backend executable and installers |
 | Type checks, renderer tests, backend tests and Ruff checks | AI integrations, RAG, authentication, and desktop control |

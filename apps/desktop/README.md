@@ -1,74 +1,95 @@
-# Desktop foundation
+# Desktop app
 
-A local-only Electron shell with a static, framework-free TypeScript renderer.
-No AI, RAG, database, IPC bridge, backend process, or OS-control features exist.
+An Electron chat client for the Deski backend, inspired by Ollama's desktop UI:
+a chat history sidebar, a composer that accepts files, streamed replies and a
+settings page for choosing the AI provider (Anthropic or OpenAI), model, API key
+and theme. The renderer is framework-free TypeScript.
 
 ## Requirements and commands
 
-Use Node.js 22 (>=22.12.0) and npm 10. The setup was checked with Node.js
-22.23.3 and npm 10.9.9 on macOS. From the repository root:
+Use Node.js 22 (>=22.12.0) and npm 10. From the repository root:
 
 ```sh
 npm ci
-npm run dev
+npm run dev          # backend on 127.0.0.1:8000 + desktop app
+npm run dev:desktop  # desktop only, talks to http://127.0.0.1:8000
+npm run dev:fake     # desktop only, answered by the built-in fake API
 npm run typecheck
 npm test
 npm run build
 ```
 
-`npm ci` installs the locked dependencies. The pinned Electron package acquires
-its native binary lazily when first launched, so the first `npm run dev` may
-require network access. `npm run dev` compiles once and opens the local built page;
-there is no development server or hot reload. After edits, close the app and
-run it again. `npm run build` emits application code and assets into
-`apps/desktop/dist/`; it does not produce an installer.
+Set `DESKI_BACKEND_URL` to use another loopback backend address. The pinned
+Electron package downloads its native binary on first launch. There is no hot
+reload: close the app and run the command again after changes. `npm run build`
+emits code and assets into `apps/desktop/dist/`; it does not produce an installer.
 
-The equivalent app-local commands, after installation from the root, are:
+### Fake API (`dev:fake`)
 
-```sh
-cd apps/desktop
-npm run dev
-npm run typecheck
-npm test
-npm run build
+The backend services still return 503 until teammates wire them. To build and
+demonstrate the UI meanwhile, `npm run dev:fake` starts the app with
+`--fake-api`, which swaps the HTTP client for `src/main/fake-backend.ts`. It
+implements the same `BackendClient` interface, streams a canned Markdown reply
+word by word, mentions uploaded documents and keeps settings in memory. The app
+shows a **Demo** badge in this mode so its answers are never mistaken for real
+ones. Without the flag the fake API is never used.
+
+## Structure
+
+```
+src/
+├── shared/deski-api.d.ts   IPC contract types shared by every process
+├── main/                   privileged Electron process
+│   ├── main.ts             window lifecycle and security restrictions
+│   ├── ipc.ts              IPC handlers (trusted sender check + validation)
+│   ├── ipc-validation.ts   payload validation mirroring the backend bounds
+│   ├── backend-client.ts   typed HTTP client for /api/v1
+│   └── fake-backend.ts     opt-in development stand-in with streaming
+├── preload/index.cts       exposes window.deski; CommonJS for the sandbox
+└── renderer/               UI, no Node.js access
+    ├── app.ts              application state and view switching
+    ├── features/           pure logic: chat history, Markdown, documents, settings
+    ├── components/         atoms → molecules → organisms (Atomic Design)
+    ├── pages/              chat and settings pages
+    ├── i18n/tr.ts          every user-facing string
+    └── styles/             tokens.css (design tokens), base, components, layout
 ```
 
-For compile/test-only environments, `npm ci --ignore-scripts` suppresses npm
-lifecycle scripts but does not prevent Electron's later lazy binary download.
-Do not run `npm run dev` when binary acquisition or app launch is unwanted.
-Verification used a lifecycle-script-free installation without launching Electron;
-window rendering, keyboard/visual accessibility, and native runtime security
-were not exercised. Neither Windows nor Linux was verified. No installer,
-signing, CI, or packaging configuration is included.
+Data flows one way: the renderer calls `window.deski`, the preload forwards the
+call over IPC, the main process validates the payload and calls the backend.
+Every call resolves to an `ApiResult` (`ok` or a typed error) instead of throwing,
+because exceptions lose their details across IPC. Streamed replies arrive as
+`chat:chunk` events tagged with a stream id.
 
-## Responsibilities
+The backend has no chat history endpoint yet, so the history is stored in
+`localStorage` behind the small `ChatStore` interface; replacing it with an
+API-backed store does not affect the UI. Files are read as text in the renderer
+and sent to `POST /documents` as content (at most 1,000,000 characters), because
+the backend contract never accepts filesystem paths. The real backend has no
+streaming endpoint, so its reply is delivered as a single chunk.
 
-- `src/main/main.ts`: window lifecycle and restrictions; loads only built local HTML.
-- `src/renderer/main.ts`: mounts the concrete page, with no Node.js types or APIs.
-- `src/renderer/pages/scaffold-page.ts`: concrete populated page and safe title rendering.
-- `src/renderer/index.html` and `styles.css`: semantic document and minimal responsive styles.
-- `test/`: Node.js built-in tests for exact output and HTML escaping, without Electron.
-- `scripts/copy-assets.mjs`: copies the two static assets after TypeScript compilation.
+## Design system
 
-Atomic Design describes composition responsibilities, not five required folders.
-Only the **page** tier is warranted now. Native HTML supplies basic atoms;
-there are no reusable custom atoms, cohesive molecules, substantial organisms,
-or repeated layouts needing templates yet. Introduce those tiers only when
-real composition/reuse calls for them; low-level tiers must not import pages.
-No speculative components or framework are included.
+`styles/tokens.css` is the only place with raw colors, sizes and timings; light
+and dark themes are two sets of the same tokens. The theme follows the system
+or the user's choice in Settings. The brand mark is `assets/logo.svg`;
+`assets/icon.png` (512 px) is exported from it for the window and dock icon.
+Icons are inline SVG paths adapted from Lucide (ISC License).
 
-## Security and dependency choices
+## Security
 
-The window explicitly enables context isolation and sandboxing and disables
-Node.js integration and webviews. There is no preload or privileged bridge.
-New windows, renderer navigation/redirects, and permission requests are denied.
-The CSP permits local scripts/styles only and denies network connections and
-form submission. Keep all content local; do not add remote URLs or shell APIs.
-The pure page renderer escapes its title before HTML insertion.
+The window keeps context isolation and sandboxing on and Node.js integration and
+webviews off. Navigation, redirects, new windows and permission requests are
+denied. The CSP allows only local scripts, styles and images and denies network
+connections, so all HTTP traffic goes through the main process. IPC handlers
+accept calls only from the bundled `file://` page and validate every payload.
+Assistant Markdown is HTML-escaped before markup is added; all other text is set
+with `textContent`. API keys are sent to the backend once and never stored by the UI.
 
-Dependencies are exact-pinned: Electron 45.2.3 (registry requires Node >=22.12),
-TypeScript 5.9.3 (requires Node >=14.17), and host Node 22 types 22.20.5.
-Versions and engine requirements were checked with `npm view` during setup;
-the committed root `package-lock.json` pins transitive resolution. Separate
-strict compiler configurations keep Node types out of the renderer. The test
-runner uses Node 22's built-in TypeScript stripping, with no extra framework.
+## Tests and verification limits
+
+`npm test` runs Node.js built-in tests for the pure modules: backend client, IPC
+validation, fake API, chat history and storage, Markdown, attachments, message
+sending and settings. DOM components are not unit-tested; they were checked by
+launching the app on macOS against the fake API in light and dark themes.
+Windows and Linux were not verified, and no installer or signing is configured.
