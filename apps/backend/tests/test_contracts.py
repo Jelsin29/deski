@@ -15,44 +15,6 @@ def request(method, path, **kwargs):
     return asyncio.run(send())
 
 
-def error(field, kind, message, value, **context):
-    detail = {
-        "type": kind,
-        "loc": ["body", field] if field else ["body"],
-        "msg": message,
-        "input": value,
-    }
-    if context:
-        detail["ctx"] = context
-    return detail
-
-
-def string_error(field, value, maximum):
-    if not value:
-        return error(
-            field,
-            "string_too_short",
-            "String should have at least 1 character",
-            value,
-            min_length=1,
-        )
-    if len(value) > maximum:
-        return error(
-            field,
-            "string_too_long",
-            f"String should have at most {maximum} characters",
-            value,
-            max_length=maximum,
-        )
-    return error(
-        field,
-        "string_pattern_mismatch",
-        "String should match pattern '\\S'",
-        value,
-        pattern=r"\S",
-    )
-
-
 def test_openapi_contracts():
     schema = app.openapi()
     for path, methods in {
@@ -103,23 +65,14 @@ def test_public_settings_patch_schema_matches_runtime():
     }
 
 
-def test_ordinary_validation_is_not_redacted():
+def test_ordinary_validation_has_safe_string_detail():
     from app.api.v1.dependencies import get_chat_service
 
     app.dependency_overrides[get_chat_service] = lambda: object()
     try:
         response = request("POST", "/chat", json={"message": 123})
         assert response.status_code == 422
-        assert response.json() == {
-            "detail": [
-                {
-                    "type": "string_type",
-                    "loc": ["body", "message"],
-                    "msg": "Input should be a valid string",
-                    "input": 123,
-                }
-            ]
-        }
+        assert response.json() == {"detail": "Invalid request"}
     finally:
         app.dependency_overrides.clear()
 
@@ -337,39 +290,7 @@ def test_settings_contract():
         ]:
             response = request("PATCH", "/settings", json=patch)
             assert response.status_code == 422
-            if not patch or any(value is None for value in patch.values()):
-                message = (
-                    "Settings patch must contain provider or model"
-                    if not patch
-                    else "Settings patch fields must not be null"
-                )
-                expected = [
-                    error(
-                        None, "value_error", f"Value error, {message}", patch, error={}
-                    )
-                ]
-            elif "provider" in patch:
-                expected = [
-                    error(
-                        "provider",
-                        "enum",
-                        "Input should be 'openai' or 'anthropic'",
-                        patch["provider"],
-                        expected="'openai' or 'anthropic'",
-                    )
-                ]
-            elif "model" in patch:
-                expected = [string_error("model", patch["model"], 128)]
-            else:
-                expected = [
-                    error(
-                        "other",
-                        "extra_forbidden",
-                        "Extra inputs are not permitted",
-                        "x",
-                    )
-                ]
-            assert response.json() == {"detail": expected}
+            assert response.json() == {"detail": "Invalid request"}
             assert calls == [
                 "get",
                 {"provider": "anthropic"},
@@ -420,22 +341,7 @@ def test_documents_contract():
         ]:
             response = request("POST", "/documents", json=payload)
             assert response.status_code == 422
-            expected = []
-            for field, maximum in [("document_name", 255), ("content", 1000000)]:
-                if field not in payload:
-                    expected.append(error(field, "missing", "Field required", payload))
-                elif not payload[field].strip() or len(payload[field]) > maximum:
-                    expected.append(string_error(field, payload[field], maximum))
-            if "path" in payload:
-                expected.append(
-                    error(
-                        "path",
-                        "extra_forbidden",
-                        "Extra inputs are not permitted",
-                        "/not-read",
-                    )
-                )
-            assert response.json() == {"detail": expected}
+            assert response.json() == {"detail": "Invalid request"}
             assert len(calls) == 2
     finally:
         app.dependency_overrides.clear()
@@ -465,8 +371,8 @@ def test_chat_delegates_and_rejects_invalid_input():
             assert response.status_code == 200
             assert response.json() == {"chat_id": "conversation", "message": "Reply"}
         assert calls == [
-            {"message": "H", "chat_id": None},
-            {"message": "Hi", "chat_id": "old"},
+            {"message": "H", "chat_id": None, "document_ids": []},
+            {"message": "Hi", "chat_id": "old", "document_ids": []},
         ]
         for payload in [
             {},
@@ -480,35 +386,21 @@ def test_chat_delegates_and_rejects_invalid_input():
         ]:
             response = request("POST", "/chat", json=payload)
             assert response.status_code == 422
-            if not payload:
-                expected = [error("message", "missing", "Field required", payload)]
-            elif "extra" in payload:
-                expected = [
-                    error(
-                        "extra",
-                        "extra_forbidden",
-                        "Extra inputs are not permitted",
-                        True,
-                    )
-                ]
-            else:
-                field = "chat_id" if "chat_id" in payload else "message"
-                expected = [
-                    string_error(
-                        field, payload[field], 128 if field == "chat_id" else 10000
-                    )
-                ]
-            assert response.json() == {"detail": expected}
+            assert response.json() == {"detail": "Invalid request"}
             assert len(calls) == 2
         response = request(
             "POST", "/chat", json={"message": "x" * 10000, "chat_id": "i" * 128}
         )
         assert response.status_code == 200
         assert response.json() == {"chat_id": "conversation", "message": "Reply"}
-        assert calls[-1] == {"message": "x" * 10000, "chat_id": "i" * 128}
+        assert calls[-1] == {
+            "message": "x" * 10000,
+            "chat_id": "i" * 128,
+            "document_ids": [],
+        }
         response = request("POST", "/chat", json={"message": "H", "chat_id": None})
         assert response.status_code == 200
         assert response.json() == {"chat_id": "conversation", "message": "Reply"}
-        assert calls[-1] == {"message": "H", "chat_id": None}
+        assert calls[-1] == {"message": "H", "chat_id": None, "document_ids": []}
     finally:
         app.dependency_overrides.clear()

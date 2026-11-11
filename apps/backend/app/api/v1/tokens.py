@@ -1,10 +1,12 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Request, Response
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from fastapi.routing import APIRoute
+from pydantic import TypeAdapter
 from starlette.exceptions import HTTPException
+from starlette.routing import Match
 
 from app.api.v1.contracts import ErrorResponse, Provider, TokenRequest, TokenResponse
 from app.api.v1.dependencies import TokenService, get_token_service
@@ -36,7 +38,42 @@ class SecretSafeRoute(APIRoute):
         return handle
 
 
+class CollectionSlashRoute(SecretSafeRoute):
+    def matches(self, scope):
+        match, child_scope = super().matches(scope)
+        if match != Match.NONE and child_scope["path_params"]["suffix"].strip("/"):
+            return Match.NONE, {}
+        return match, child_scope
+
+
 router = APIRouter(route_class=SecretSafeRoute)
+
+
+async def reject_token_collection_slash(request: Request, suffix: str) -> Response:
+    # Match only slash-only suffixes: never capture provider paths or redirect
+    # a query string containing credentials. No dependencies or body parsing.
+    if request.method == "HEAD":
+        return Response(status_code=404)
+    return JSONResponse({"detail": "Not Found"}, status_code=404)
+
+
+router.add_api_route(
+    "/tokens/{suffix:path}",
+    reject_token_collection_slash,
+    methods=[
+        "GET",
+        "PUT",
+        "POST",
+        "DELETE",
+        "HEAD",
+        "OPTIONS",
+        "PATCH",
+        "TRACE",
+        "CONNECT",
+    ],
+    include_in_schema=False,
+    route_class_override=CollectionSlashRoute,
+)
 
 
 @router.put("/tokens/{provider}/{suffix:path}", include_in_schema=False)
@@ -47,6 +84,23 @@ async def reject_token_trailing_slash(suffix: str) -> JSONResponse:
     if suffix.strip("/"):
         return JSONResponse({"detail": "Not Found"}, status_code=404)
     return JSONResponse({"detail": "Invalid token path"}, status_code=400)
+
+
+@router.get(
+    "/tokens",
+    tags=["tokens"],
+    response_model=list[TokenResponse],
+    responses={503: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
+)
+async def token_status(
+    service: Annotated[TokenService, Depends(get_token_service)],
+) -> list[TokenResponse]:
+    items = TypeAdapter(list[TokenResponse]).validate_python(await service.status())
+    if len(items) != len(Provider) or {item.provider for item in items} != set(
+        Provider
+    ):
+        raise ValueError("Expected metadata for every provider")
+    return sorted(items, key=lambda item: list(Provider).index(item.provider))
 
 
 @router.put(
