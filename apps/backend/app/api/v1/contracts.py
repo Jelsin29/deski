@@ -1,9 +1,11 @@
 """Provisional HTTP contracts; move domain models only with their future owners."""
 
+from datetime import UTC
 from enum import StrEnum
-from typing import Annotated, Any, Self
+from typing import Annotated, Any, Literal, Self
 
 from pydantic import (
+    AwareDatetime,
     BaseModel,
     ConfigDict,
     Field,
@@ -37,11 +39,53 @@ class RequestModel(BaseModel):
 class ChatRequest(RequestModel):
     message: NonblankMessage
     chat_id: OpaqueId | None = None
+    document_ids: list[OpaqueId] = Field(default_factory=list)
 
 
 class ChatResponse(BaseModel):
     chat_id: OpaqueId
     message: NonblankMessage
+
+
+class StreamStartData(RequestModel):
+    chat_id: OpaqueId
+
+
+class StreamDeltaData(RequestModel):
+    text: str = Field(strict=True, max_length=10000)
+
+
+class StreamDoneData(RequestModel):
+    message_id: OpaqueId
+
+
+class StreamErrorData(RequestModel):
+    detail: str = Field(strict=True, max_length=10000)
+
+
+class StreamStart(RequestModel):
+    event: Literal["start"] = "start"
+    data: StreamStartData
+
+
+class StreamDelta(RequestModel):
+    event: Literal["delta"] = "delta"
+    data: StreamDeltaData
+
+
+class StreamDone(RequestModel):
+    event: Literal["done"] = "done"
+    data: StreamDoneData
+
+
+class StreamError(RequestModel):
+    event: Literal["error"] = "error"
+    data: StreamErrorData
+
+
+ChatStreamEvent = Annotated[
+    StreamStart | StreamDelta | StreamDone | StreamError, Field(discriminator="event")
+]
 
 
 class DocumentRequest(RequestModel):
@@ -52,6 +96,27 @@ class DocumentRequest(RequestModel):
 class DocumentResponse(BaseModel):
     document_id: OpaqueId
     document_name: DocumentName
+
+
+class HistoryTimestamp(BaseModel):
+    @field_validator("updated_at", "created_at", check_fields=False)
+    @classmethod
+    def normalize_utc(cls, value: AwareDatetime) -> AwareDatetime:
+        return value.astimezone(UTC)
+
+
+class ChatSummary(HistoryTimestamp):
+    chat_id: OpaqueId
+    title: str = Field(max_length=80)
+    updated_at: AwareDatetime
+
+
+class HistoryMessage(HistoryTimestamp):
+    message_id: OpaqueId
+    role: Literal["user", "assistant"]
+    content: NonblankMessage
+    created_at: AwareDatetime
+    documents: list[DocumentResponse]
 
 
 class Provider(StrEnum):

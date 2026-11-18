@@ -1,7 +1,8 @@
 # Backend API contracts
 
 These provisional contracts belong to the HTTP boundary, not to implemented use
-cases. All paths below have prefix `/api/v1`. JSON is the request/response format.
+cases. All paths below have prefix `/api/v1`. JSON is the request/response format
+except the POST SSE response described below.
 Only Health works without an injected service; the other operations return 503,
 not simulated success. No persistence, credential storage, document indexing,
 provider calls, authentication, or credential verification is implemented.
@@ -11,15 +12,20 @@ provider calls, authentication, or credential verification is implemented.
 | Method and path | Request | Success (HTTP 200, injected service only) |
 | --- | --- | --- |
 | `GET /health` | None | `{"status":"ok"}` |
-| `POST /chat` | Required `message: string`; optional `chat_id: string or null` (default null) | `chat_id: string`, `message: string` |
+| `POST /chat` | Required `message: string`; optional `chat_id: string or null` (default null), `document_ids: string[]` (default []) | `chat_id: string`, `message: string` |
+| `POST /chat/stream` | Same `ChatRequest` as POST /chat | SSE `start`, `delta*`, `done` or `error` |
+| `GET /chats` | None | `ChatSummary[]`, newest updated first |
+| `GET /chats/{chat_id}/messages` | Opaque chat ID | `HistoryMessage[]`, oldest created first |
+| `DELETE /chats/{chat_id}` | Opaque chat ID | HTTP **204**, no body |
+| `GET /tokens` | None | `[{"provider":"openai","configured":false},{"provider":"anthropic","configured":true}]` (example metadata) |
 | `POST /documents` | Required `document_name: string`, `content: string` | `document_id: string`, `document_name: string` |
 | `GET /settings` | None | `provider: Provider`, `model: string` |
 | `PATCH /settings` | `provider: Provider` and/or `model: string` | Complete `provider`, `model` pair |
 | `PUT /tokens/{provider}` | Required `api_key: secret string` | `provider: Provider`, `configured: boolean` only |
 
 `Provider` is exactly `openai` or `anthropic` (the provider for Claude). `claude`
-is not an identifier. IDs are opaque strings, not UUIDs. Chat has no history or
-delete operation. Documents accept text, never a filesystem path parameter;
+is not an identifier. IDs are opaque strings, not UUIDs. Documents accept text,
+never a filesystem path parameter;
 `document_name` is a label, not a path to open. No files are read by these routes.
 
 ## Input and output bounds
@@ -29,7 +35,7 @@ String lengths are inclusive character counts, not byte/upload limits:
 | Field | Minimum | Maximum |
 | --- | --- | --- |
 | Chat `message` (request and response) | 1 | 10,000 |
-| `chat_id`, `document_id` | 1 | 128 |
+| `chat_id`, `document_id`, `message_id`, each `document_ids` entry | 1 | 128 |
 | `document_name` (request and response) | 1 | 255 |
 | Document `content` | 1 | 1,000,000 |
 | Settings `model` | 1 | 128 |
@@ -45,29 +51,113 @@ PATCH fields as optional but non-null, with `minProperties: 1` to reject empty
 objects. Runtime validators enforce the same rules. Response objects expose
 only declared fields.
 
+## History and document association seams
+
+`ChatSummary` has `chat_id`, `title` (empty allowed, at most 80 characters), and
+`updated_at`. `HistoryMessage` has `message_id`, `role` (`user` or `assistant`),
+`content` (same bounds as message), `created_at`, and required `documents` array
+of `{document_id, document_name}`. Empty collections return `[]`. The HTTP history
+adapter validates service results, normalizes timezone-aware dates to UTC ISO8601
+(`2026-11-10T09:30:00Z`), and sorts chats descending by updated time and messages
+ascending by created time. Equal timestamps retain service order. Naive dates
+and invalid response fields fail with the ordinary safe 500 response.
+
+Services raise 404 `{"detail":"Chat not found"}` for missing history/deletion
+chats. Deletion delegates once and returns 204 without a body: the service owns
+removing messages and associations, never documents or user files. The service
+also owns persistent, non-AI title generation from the first message (max 80).
+No deletion, generation or persistence is implemented here.
+
+`ChatService.send` must validate all document IDs before any mutation and raise
+422 `{"detail":"Unknown document ID"}` for unknown IDs. The adapter validates
+ID syntax only; document existence is service-owned. `document_ids` is non-null,
+with no additional count/uniqueness restriction. GET /models is not delivered. `TokenService.status` supplies exactly one metadata item
+per provider; the guarded HTTP adapter emits openai then anthropic, filtering
+undeclared fields and rejecting missing/duplicate/invalid provider results safely.
+
+## POST streaming producer and terminal contract
+
+Use POST fetch with the same JSON `ChatRequest`, including optional `document_ids`
+(default `[]`), not EventSource or WebSocket. Success is HTTP 200 with
+`Content-Type: text/event-stream; charset=utf-8`. Each frame is `event: <name>`,
+newline, `data: <compact JSON>`, then a blank line. For example:
+
+```text
+event: start
+data: {"chat_id":"c_42"}
+
+event: delta
+data: {"text":"Merha"}
+
+event: done
+data: {"message_id":"m_9"}
+
+```
+
+`ChatStreamService.open(ChatRequest)` asynchronously acquires an async generator.
+It must validate document existence before mutation (unknown ID: HTTP 422
+`{"detail":"Unknown document ID"}`), and raise known unavailability as HTTP 503.
+The adapter awaits acquisition AND the first valid `StreamStart` before committing
+200; HTTP errors there remain JSON HTTP errors. Empty/invalid initial streams and
+unexpected acquisition failures return safe 503 `{"detail":"Chat service unavailable"}`.
+Missing streaming wiring uses that same 503. Existing validation rules apply.
+
+Producer order is exactly one `StreamStart`, zero or more `StreamDelta`, then one
+`StreamDone` or `StreamError`. Payloads are respectively `{chat_id}`, `{text}`,
+`{message_id}`, `{detail}`. IDs reuse opaque-ID bounds; each delta/error text has a
+10,000-character ceiling (empty allowed). JSON escaping prevents embedded CR/LF,
+quotes or backslashes from injecting frames. The adapter pulls one event at a
+time without accumulating the response. It validates payloads and order.
+After start, exceptions, premature exhaustion, repeated start, invalid events or
+producer error emit exactly `error {"detail":"Chat stream failed"}` then close;
+producer error detail is never forwarded or logged. Done and error are terminal:
+no further upstream event is read, and no done follows error. Cancellation is
+not converted to an error frame; disconnect/cancellation closes the upstream
+generator, whose `finally` must release resources. Cleanup exceptions are not
+exposed. Services must propagate cancellation and keep cleanup finite; the
+adapter provides no timeout, heartbeat, persistence rollback or provider logic.
+OpenAPI advertises only `text/event-stream` for 200; its union describes decoded
+`{event,data}` frames, NOT a JSON response envelope. Generated TS exposes all four
+event/payload models; consumers must parse SSE framing before decoding data.
+
 ## Errors and secret handling
 
 Missing service dependencies raise HTTP 503 with these exact JSON bodies:
 
 - Chat: `{"detail":"Chat service unavailable"}`
+- History (list/messages/delete): `{"detail":"History service unavailable"}`
 - Documents: `{"detail":"Document service unavailable"}`
 - GET/PATCH Settings: `{"detail":"Settings service unavailable"}`
 - Tokens: `{"detail":"Token service unavailable"}`
 
 Dependencies may fail before body validation; an unavailable service can therefore
 produce 503 even for an invalid request. With a service wired, invalid input is
-422 and is rejected before calling the service. Non-token routes retain standard
-FastAPI validation: `{"detail":[...]}`, with error `type`, `loc`, `msg`, `input`
-and, where applicable, `ctx`. This can echo ordinary non-token input: do not send
-credentials to chat, documents or settings. Non-token service failures retain
-FastAPI's ordinary exception behavior; no global error wrapper is installed.
+422 and is rejected before calling the service. Ordinary validation (including
+malformed JSON) now returns only `{"detail":"Invalid request"}`. Validation
+inputs, locations and context are not echoed. All JSON error bodies have a string
+`detail`; clients must no longer expect FastAPI's validation arrays.
 
-Token paths with one or more trailing slashes are rejected without redirects or
+Ordinary HTTP exceptions preserve status codes, headers and intentional string
+detail (including the 503 messages above). Non-string detail becomes
+`{"detail":"Request failed"}` rather than stringifying potentially sensitive data.
+Unexpected exceptions, including invalid service responses, return HTTP 500
+`{"detail":"Internal server error"}` without exception details or logging by this
+handler. Services must keep intentional HTTP messages/headers safe for clients.
+OpenAPI describes 422 and 500 with `ErrorResponse`; regenerate TypeScript with
+`npm run gen-types`. Health remains exactly HTTP 200 `{"status":"ok"}`.
+
+Token provider paths with one or more trailing slashes are rejected without redirects or
 `Location` headers: PUT returns HTTP 400 `{"detail":"Invalid token path"}`; other methods
 return HTTP 405 `{"detail":"Method Not Allowed"}` (HEAD has no response body).
 This transport-only token suffix guard is excluded from OpenAPI and invokes no
 service. Other suffixes remain invalid (PUT returns a fixed 404; other methods
-return 405). Non-token slash-routing behavior is unchanged.
+return 405). Collection paths `/tokens/`, `/tokens//`, and further slash-only
+suffixes preserve HTTP 404 `{"detail":"Not Found"}` for GET, PUT, POST, DELETE,
+HEAD, OPTIONS, PATCH, TRACE, and CONNECT (HEAD has no body). They never redirect,
+emit `Location`, or invoke token dependencies/services, including when query strings
+contain secrets.
+The collection guard matches slash-only suffixes, leaving provider routes intact.
+Non-token slash-routing behavior is unchanged.
 
 Token routes alone replace validation errors (including malformed JSON and
 invalid provider paths) with HTTP 422 `{"detail":"Invalid token request"}`.
@@ -75,8 +165,9 @@ Token service HTTP exceptions keep their status but discard detail and headers:
 503 uses the unavailable body above; other statuses use
 `{"detail":"Token request failed"}`. Unexpected exceptions, including invalid
 service responses, return HTTP 500 `{"detail":"Token service failed"}`. This
-boundary does not log request bodies or caught exceptions. Health and unrelated
-validation handlers are unchanged.
+boundary does not log request bodies or caught exceptions. Its existing route
+handler and path guard take precedence over the ordinary error policy; token
+messages and header redaction are unchanged.
 
 `api_key` uses Pydantic `SecretStr`; OpenAPI marks it write-only/password and
 contains no credential examples. Plaintext is accessible to the future service
@@ -100,10 +191,15 @@ Health route stays independent of services.
 Implement the corresponding asynchronous Protocol outside the HTTP layer:
 
 - `ChatService.send(ChatRequest) -> ChatResponse`
+- `ChatStreamService.open(ChatRequest) -> AsyncGenerator[ChatStreamEvent, None]`
+- `HistoryService.list_chats() -> list[ChatSummary]`
+- `HistoryService.messages(chat_id: str) -> list[HistoryMessage]`
+- `HistoryService.delete(chat_id: str) -> None`
 - `DocumentService.create(DocumentRequest) -> DocumentResponse`
 - `SettingsService.get() -> SettingsResponse`
 - `SettingsService.update(SettingsPatch) -> SettingsResponse`
 - `TokenService.configure(Provider, TokenRequest) -> TokenResponse`
+- `TokenService.status() -> list[TokenResponse]`
 
 Replace only the relevant `get_*_service` wiring when its real implementation is
 ready. Until then leave its explicit 503. Keep provisional schemas close to the
