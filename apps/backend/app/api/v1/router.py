@@ -34,7 +34,12 @@ router.include_router(streaming_router)
 services = APIRouter(responses={503: {"model": ErrorResponse}})
 
 
-@services.post("/chat", tags=["chat"], response_model=ChatResponse)
+@services.post(
+    "/chat",
+    tags=["chat"],
+    response_model=ChatResponse,
+    responses={404: {"model": ErrorResponse}},
+)
 async def chat(
     payload: ChatRequest, service: Annotated[ChatService, Depends(get_chat_service)]
 ) -> ChatResponse:

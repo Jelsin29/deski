@@ -15,6 +15,12 @@ export type ModelContract = Assert<Equal<Patch['model'], string | undefined>>;
 type JsonError<T extends { content: { 'application/json': unknown } }> =
   T['content']['application/json'];
 type ErrorBody = { detail: string };
+export type ChatMessageId = Assert<Equal<
+  components['schemas']['ChatResponse']['message_id'], string>>;
+export type ChatSummaryCreatedAt = Assert<Equal<
+  components['schemas']['ChatSummary']['created_at'], string>>;
+export type ChatNotFound = Assert<Equal<JsonError<
+  paths['/api/v1/chat']['post']['responses'][404]>, ErrorBody>>;
 export type ChatValidationError = Assert<Equal<JsonError<
   paths['/api/v1/chat']['post']['responses'][422]>, ErrorBody>>;
 export type DocumentValidationError = Assert<Equal<JsonError<

@@ -12,12 +12,17 @@ function fakeFetch(status, body) {
 }
 
 test('sends chat requests as JSON to the versioned API', async () => {
-  const { calls, fetchImpl } = fakeFetch(200, { chat_id: 'c1', message: 'Merhaba' });
+  const { calls, fetchImpl } = fakeFetch(200, {
+    chat_id: 'c1', message_id: 'm1', message: 'Merhaba',
+  });
   const client = createBackendClient('http://backend.test', fetchImpl);
 
   const result = await client.sendMessage({ message: 'Selam', chat_id: null });
 
-  assert.deepEqual(result, { ok: true, data: { chat_id: 'c1', message: 'Merhaba' } });
+  assert.deepEqual(result, {
+    ok: true,
+    data: { chat_id: 'c1', message_id: 'm1', message: 'Merhaba' },
+  });
   assert.equal(calls[0].url, 'http://backend.test/api/v1/chat');
   assert.equal(calls[0].init.method, 'POST');
   assert.equal(calls[0].init.body, JSON.stringify({ message: 'Selam', chat_id: null }));
@@ -35,13 +40,16 @@ test('saves tokens under the provider path with the backend field name', async (
 });
 
 test('streams a non-streaming backend reply as a single chunk', async () => {
-  const { fetchImpl } = fakeFetch(200, { chat_id: 'c1', message: 'Tam yanıt' });
+  const { fetchImpl } = fakeFetch(200, {
+    chat_id: 'c1', message_id: 'm1', message: 'Tam yanıt',
+  });
   const client = createBackendClient('http://backend.test', fetchImpl);
   const deltas = [];
 
   const result = await client.streamMessage({ message: 'Selam', chat_id: null }, (delta) => deltas.push(delta));
 
   assert.equal(result.ok, true);
+  assert.equal(result.data.message_id, 'm1');
   assert.deepEqual(deltas, ['Tam yanıt']);
 });
 
