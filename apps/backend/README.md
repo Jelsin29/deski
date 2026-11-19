@@ -37,7 +37,7 @@ wiring in `app/api/v1/dependencies.py`.
 
 | Operation | Input | Success with injected service (HTTP 200) |
 | --- | --- | --- |
-| `POST /chat` | `message`, optional `chat_id`, `document_ids` (default []) | `chat_id`, `message` |
+| `POST /chat` | `message`, optional `chat_id`, `document_ids` (default []) | `chat_id`, `message_id`, `message` |
 | `POST /chat/stream` | Same as POST /chat | POST SSE: start, delta*, done or error |
 | `GET /chats` | None | Chat summaries, newest updated first |
 | `GET /chats/{chat_id}/messages` | Chat ID | Messages/documents, oldest created first |

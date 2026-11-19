@@ -39,6 +39,7 @@ export function createFakeBackendClient({ wordDelayMs = 35 }: FakeBackendOptions
   let settings: Settings = { provider: 'anthropic', model: 'claude-sonnet-5-5' };
   let documentCount = 0;
   let chatCount = 0;
+  let messageCount = 0;
   const documentsByChat = new Map<string, string[]>();
   // Documents are uploaded before their message, so they wait here until the chat is known.
   let unassignedDocuments: string[] = [];
@@ -48,7 +49,11 @@ export function createFakeBackendClient({ wordDelayMs = 35 }: FakeBackendOptions
     const documents = [...(documentsByChat.get(id) ?? []), ...unassignedDocuments];
     documentsByChat.set(id, documents);
     unassignedDocuments = [];
-    return { chat_id: id, message: composeDemoReply(message, documents) };
+    return {
+      chat_id: id,
+      message_id: `demo-message-${++messageCount}`,
+      message: composeDemoReply(message, documents),
+    };
   }
 
   return {

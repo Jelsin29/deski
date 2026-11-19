@@ -15,10 +15,16 @@ def overrides():
 def test_history_contract():
     calls = []
     chats = [
-        {"chat_id": "old", "title": "", "updated_at": "2026-11-10T09:29:00Z"},
+        {
+            "chat_id": "old",
+            "title": "",
+            "created_at": "2026-11-10T09:00:00-05:00",
+            "updated_at": "2026-11-10T09:29:00Z",
+        },
         {
             "chat_id": "new",
             "title": "t" * 80,
+            "created_at": "2026-11-10T09:30:00+02:00",
             "updated_at": "2026-11-10T11:30:00+02:00",
         },
     ]
@@ -58,8 +64,12 @@ def test_history_contract():
     response = request("GET", "/chats")
     assert response.status_code == 200
     assert response.json() == [
-        dict(chats[1], updated_at="2026-11-10T09:30:00Z"),
-        chats[0],
+        dict(
+            chats[1],
+            created_at="2026-11-10T07:30:00Z",
+            updated_at="2026-11-10T09:30:00Z",
+        ),
+        dict(chats[0], created_at="2026-11-10T14:00:00Z"),
     ]
     response = request("GET", "/chats/c42/messages")
     assert response.status_code == 200
@@ -86,7 +96,12 @@ def test_history_contract():
 
 @pytest.mark.parametrize(
     "patch",
-    [{"title": "t" * 81}, {"updated_at": "2026-11-10T09:30:00"}, {"chat_id": " "}],
+    [
+        {"title": "t" * 81},
+        {"updated_at": "2026-11-10T09:30:00"},
+        {"chat_id": " "},
+        {"created_at": None},
+    ],
 )
 def test_invalid_history_response_is_safe(patch):
     from test_errors import request as safe_request
@@ -94,8 +109,27 @@ def test_invalid_history_response_is_safe(patch):
     class History:
         async def list_chats(self):
             return [
-                dict(chat_id="c", title="", updated_at="2026-11-10T09:30:00Z") | patch
+                dict(
+                    chat_id="c",
+                    title="",
+                    created_at="2026-11-10T09:00:00Z",
+                    updated_at="2026-11-10T09:30:00Z",
+                )
+                | patch
             ]
+
+    app.dependency_overrides[get_history_service] = lambda: History()
+    response = safe_request("GET", "/api/v1/chats")
+    assert response.status_code == 500
+    assert response.json() == {"detail": "Internal server error"}
+
+
+def test_chat_summary_requires_created_at():
+    from test_errors import request as safe_request
+
+    class History:
+        async def list_chats(self):
+            return [{"chat_id": "c", "title": "", "updated_at": "2026-11-10T09:30:00Z"}]
 
     app.dependency_overrides[get_history_service] = lambda: History()
     response = safe_request("GET", "/api/v1/chats")

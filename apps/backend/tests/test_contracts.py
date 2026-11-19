@@ -35,6 +35,16 @@ def test_openapi_contracts():
     ]
     response = schema["components"]["schemas"]["TokenResponse"]
     assert set(response["properties"]) == {"provider", "configured"}
+    chat = schema["paths"]["/api/v1/chat"]["post"]
+    assert chat["responses"]["404"]["content"]["application/json"]["schema"][
+        "$ref"
+    ] == ("#/components/schemas/ErrorResponse")
+    chat_response = schema["components"]["schemas"]["ChatResponse"]
+    assert {"chat_id", "message_id", "message"} <= set(chat_response["required"])
+    chat_summary = schema["components"]["schemas"]["ChatSummary"]
+    assert {"chat_id", "title", "created_at", "updated_at"} <= set(
+        chat_summary["required"]
+    )
 
 
 def test_public_settings_patch_schema_matches_runtime():
@@ -353,6 +363,37 @@ def test_chat_unavailable_without_service():
     assert response.json() == {"detail": "Chat service unavailable"}
 
 
+def test_chat_message_id_opaque_id_bounds():
+    from test_errors import request as safe_request
+
+    from app.api.v1.dependencies import get_chat_service
+
+    current_id = "m"
+
+    class FakeChat:
+        async def send(self, payload):
+            return {
+                "chat_id": "conversation",
+                "message_id": current_id,
+                "message": "Reply",
+            }
+
+    app.dependency_overrides[get_chat_service] = lambda: FakeChat()
+    try:
+        for message_id in ["m", "m" * 128]:
+            current_id = message_id
+            response = request("POST", "/chat", json={"message": "Hi"})
+            assert response.status_code == 200
+            assert response.json()["message_id"] == message_id
+        for message_id in ["", "m" * 129]:
+            current_id = message_id
+            response = safe_request("POST", "/api/v1/chat", json={"message": "Hi"})
+            assert response.status_code == 500
+            assert response.json() == {"detail": "Internal server error"}
+    finally:
+        app.dependency_overrides.clear()
+
+
 def test_chat_delegates_and_rejects_invalid_input():
     from app.api.v1.contracts import ChatResponse
     from app.api.v1.dependencies import get_chat_service
@@ -362,14 +403,20 @@ def test_chat_delegates_and_rejects_invalid_input():
     class FakeChat:
         async def send(self, payload):
             calls.append(payload.model_dump())
-            return ChatResponse(chat_id="conversation", message="Reply")
+            return ChatResponse(
+                chat_id="conversation", message_id="message-1", message="Reply"
+            )
 
     app.dependency_overrides[get_chat_service] = lambda: FakeChat()
     try:
         for payload in [{"message": "H"}, {"message": "Hi", "chat_id": "old"}]:
             response = request("POST", "/chat", json=payload)
             assert response.status_code == 200
-            assert response.json() == {"chat_id": "conversation", "message": "Reply"}
+            assert response.json() == {
+                "chat_id": "conversation",
+                "message_id": "message-1",
+                "message": "Reply",
+            }
         assert calls == [
             {"message": "H", "chat_id": None, "document_ids": []},
             {"message": "Hi", "chat_id": "old", "document_ids": []},
@@ -392,7 +439,11 @@ def test_chat_delegates_and_rejects_invalid_input():
             "POST", "/chat", json={"message": "x" * 10000, "chat_id": "i" * 128}
         )
         assert response.status_code == 200
-        assert response.json() == {"chat_id": "conversation", "message": "Reply"}
+        assert response.json() == {
+            "chat_id": "conversation",
+            "message_id": "message-1",
+            "message": "Reply",
+        }
         assert calls[-1] == {
             "message": "x" * 10000,
             "chat_id": "i" * 128,
@@ -400,7 +451,11 @@ def test_chat_delegates_and_rejects_invalid_input():
         }
         response = request("POST", "/chat", json={"message": "H", "chat_id": None})
         assert response.status_code == 200
-        assert response.json() == {"chat_id": "conversation", "message": "Reply"}
+        assert response.json() == {
+            "chat_id": "conversation",
+            "message_id": "message-1",
+            "message": "Reply",
+        }
         assert calls[-1] == {"message": "H", "chat_id": None, "document_ids": []}
     finally:
         app.dependency_overrides.clear()
