@@ -394,6 +394,38 @@ def test_chat_message_id_opaque_id_bounds():
         app.dependency_overrides.clear()
 
 
+def test_chat_rejects_invalid_service_message_ids_safely(caplog):
+    from test_errors import request as safe_request
+
+    from app.api.v1.dependencies import get_chat_service
+
+    secret = "private-invalid-message-id"
+    invalid_responses = [
+        {"chat_id": "chat", "message": secret},
+        {"chat_id": "chat", "message_id": None, "message": secret},
+        {"chat_id": "chat", "message_id": 42, "message": secret},
+        {"chat_id": "chat", "message_id": "   ", "message": secret},
+    ]
+
+    class FakeChat:
+        async def send(self, payload):
+            return invalid_responses.pop(0)
+
+    app.dependency_overrides[get_chat_service] = lambda: FakeChat()
+    try:
+        for _ in range(4):
+            response = safe_request("POST", "/api/v1/chat", json={"message": "Hello"})
+            assert response.status_code == 500
+            assert response.json() == {"detail": "Internal server error"}
+            assert response.headers["content-type"] == "application/json"
+            assert secret not in response.text
+            assert secret not in str(response.headers)
+            assert secret not in caplog.text
+        assert invalid_responses == []
+    finally:
+        app.dependency_overrides.clear()
+
+
 def test_chat_delegates_and_rejects_invalid_input():
     from app.api.v1.contracts import ChatResponse
     from app.api.v1.dependencies import get_chat_service
