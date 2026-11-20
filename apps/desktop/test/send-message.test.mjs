@@ -29,7 +29,7 @@ test('uploads attachments before streaming the reply', async () => {
   assert.deepEqual(deltas, ['Yan', 'ıt']);
   assert.deepEqual(api.calls, [
     ['upload', { document_name: 'not.txt', content: 'Merhaba' }],
-    ['send', { message: 'Özetle', chat_id: null }],
+    ['send', { message: 'Özetle', chat_id: null, document_ids: ['d1'] }],
   ]);
 });
 

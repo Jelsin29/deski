@@ -21,9 +21,9 @@ test('streams a demo reply whose chunks add up to the final message', async () =
 
 test('mentions documents uploaded for the chat and keeps the chat id', async () => {
   const client = createFakeBackendClient({ wordDelayMs: 0 });
-  await client.uploadDocument({ document_name: 'notlar.md', content: 'içerik' });
+  const upload = await client.uploadDocument({ document_name: 'notlar.md', content: 'içerik' });
 
-  const first = await client.sendMessage({ message: 'Özetle', chat_id: null });
+  const first = await client.sendMessage({ message: 'Özetle', chat_id: null, document_ids: [upload.data.document_id] });
   const second = await client.sendMessage({ message: 'Devam', chat_id: first.data.chat_id });
 
   assert.match(first.data.message, /`notlar\.md`/);

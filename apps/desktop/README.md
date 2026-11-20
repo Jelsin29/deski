@@ -61,12 +61,13 @@ Every call resolves to an `ApiResult` (`ok` or a typed error) instead of throwin
 because exceptions lose their details across IPC. Streamed replies arrive as
 `chat:chunk` events tagged with a stream id.
 
-The backend has no chat history endpoint yet, so the history is stored in
-`localStorage` behind the small `ChatStore` interface; replacing it with an
-API-backed store does not affect the UI. Files are read as text in the renderer
-and sent to `POST /documents` as content (at most 1,000,000 characters), because
-the backend contract never accepts filesystem paths. The real backend has no
-streaming endpoint, so its reply is delivered as a single chunk.
+The UI stores history in `localStorage` behind the small `ChatStore` interface;
+the backend history endpoints exist but are not connected to this UI yet. Files
+are read as text in the renderer and sent to `POST /documents` as content (at
+most 1,000,000 characters), because the backend contract never accepts
+filesystem paths. Their returned document IDs are included in the chat request.
+The real client reads `POST /chat/stream` SSE frames and forwards each delta to
+the renderer. Backend services still return 503 until they are wired.
 
 ## Design system
 

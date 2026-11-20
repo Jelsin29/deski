@@ -39,7 +39,9 @@ export function parseChatRequest(input: unknown): ChatRequest | null {
   if (!isRecord(input) || !isText(input.message, LIMITS.message)) return null;
   const chatId = input.chat_id ?? null;
   if (chatId !== null && !isText(chatId, LIMITS.id)) return null;
-  return { message: input.message, chat_id: chatId };
+  const documentIds = input.document_ids === undefined ? [] : input.document_ids;
+  if (!Array.isArray(documentIds) || !documentIds.every((id) => isText(id, LIMITS.id))) return null;
+  return { message: input.message, chat_id: chatId, document_ids: documentIds };
 }
 
 export function parseChatStreamRequest(input: unknown): ChatStreamRequest | null {

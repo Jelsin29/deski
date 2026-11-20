@@ -1,8 +1,8 @@
 # Architecture: foundation and next boundaries
 
-The current foundation has two separate applications. They do not communicate
-with each other yet. A root developer convenience command can start both; this
-is not desktop-managed backend integration.
+The current foundation has two separate applications. The desktop calls the
+loopback backend through its IPC bridge, while a root development command can
+start both. The desktop does not manage the backend process lifecycle.
 
 ## Current responsibilities
 

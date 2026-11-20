@@ -55,21 +55,90 @@ export function createBackendClient(
   const sendMessage = (chat: ChatRequest): Promise<ApiResult<ChatResponse>> =>
     request('POST', '/chat', chat);
 
+  async function streamMessage(
+    chat: ChatRequest,
+    onDelta: (delta: string) => void,
+  ): Promise<ApiResult<ChatResponse>> {
+    let response: Response;
+    try {
+      response = await fetchImpl(`${baseUrl}/api/v1/chat/stream`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream' },
+        body: JSON.stringify(chat),
+        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+      });
+    } catch {
+      return { ok: false, error: { kind: 'offline', status: null, detail: null } };
+    }
+
+    if (!response.ok) {
+      const payload: unknown = await response.json().catch(() => null);
+      return { ok: false, error: toApiError(response.status, payload) };
+    }
+    if (!response.body || !response.headers.get('content-type')?.startsWith('text/event-stream')) {
+      return streamFailure();
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    let chatId: string | null = null;
+    let message = '';
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        buffer += done ? decoder.decode() : decoder.decode(value, { stream: true });
+        let boundary = buffer.indexOf('\n\n');
+        while (boundary !== -1) {
+          const frame = buffer.slice(0, boundary);
+          buffer = buffer.slice(boundary + 2);
+          const [eventLine, dataLine] = frame.split('\n');
+          if (!eventLine?.startsWith('event: ') || !dataLine?.startsWith('data: ')) return streamFailure();
+          let data: unknown;
+          try {
+            data = JSON.parse(dataLine.slice(6));
+          } catch {
+            return streamFailure();
+          }
+          if (typeof data !== 'object' || data === null) return streamFailure();
+          if (eventLine === 'event: start' && chatId === null && 'chat_id' in data && typeof data.chat_id === 'string') {
+            chatId = data.chat_id;
+          } else if (eventLine === 'event: delta' && chatId !== null && 'text' in data && typeof data.text === 'string') {
+            message += data.text;
+            onDelta(data.text);
+          } else if (eventLine === 'event: done' && chatId !== null && 'message_id' in data && typeof data.message_id === 'string') {
+            return { ok: true, data: { chat_id: chatId, message } };
+          } else if (eventLine === 'event: error' && 'detail' in data && typeof data.detail === 'string') {
+            return streamFailure(data.detail);
+          } else {
+            return streamFailure();
+          }
+          boundary = buffer.indexOf('\n\n');
+        }
+        if (done) return streamFailure();
+      }
+    } catch {
+      return { ok: false, error: { kind: 'offline', status: null, detail: null } };
+    } finally {
+      void reader.cancel().catch(() => {});
+      reader.releaseLock();
+    }
+  }
+
   return {
     health: () => request('GET', '/health'),
     sendMessage,
-    // The backend has no streaming endpoint yet: deliver the reply as one chunk.
-    async streamMessage(chat, onDelta) {
-      const result = await sendMessage(chat);
-      if (result.ok) onDelta(result.data.message);
-      return result;
-    },
+    streamMessage,
     uploadDocument: (document) => request('POST', '/documents', document),
     getSettings: () => request('GET', '/settings'),
     updateSettings: (patch) => request('PATCH', '/settings', patch),
     saveToken: ({ provider, apiKey }) =>
       request('PUT', `/tokens/${encodeURIComponent(provider)}`, { api_key: apiKey }),
   };
+}
+
+function streamFailure(detail: string | null = null): ApiResult<never> {
+  return { ok: false, error: { kind: 'failed', status: null, detail } };
 }
 
 export function toApiError(status: number, payload: unknown): ApiError {

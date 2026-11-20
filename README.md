@@ -32,9 +32,10 @@ npm ci
 npm run dev
 ```
 
-`npm run dev` coordinates a loopback backend and the existing desktop build/launch.
-It does **not** connect Electron to the backend. Ctrl-C or either child exiting
-stops the other process tree. Use `npm run dev:desktop` for desktop-only development.
+`npm run dev` coordinates a loopback backend and the desktop build/launch.
+The desktop calls that backend through its IPC bridge; the backend services
+still return 503 until implemented. Ctrl-C or either child exiting stops the
+other process tree. Use `npm run dev:desktop` for desktop-only development.
 
 The pinned Electron package acquires its native binary lazily on first launch,
 which may require network access. Development compiles once and opens the built
@@ -53,7 +54,8 @@ uv run --locked uvicorn app.main:app --host 127.0.0.1 --port 8000
 Stop with Ctrl-C. `GET http://127.0.0.1:8000/api/v1/health` returns HTTP 200
 and `{"status":"ok"}`; development API docs are at `/docs`. Keep this
 unauthenticated server on loopback. No secrets or environment variables are
-needed. The desktop executable itself does **not** start or connect to the backend.
+needed. The desktop executable does not start the backend; it connects to a
+separately running loopback server.
 Unwired teammate-owned Chat, Document, Settings, and Token services deliberately
 return HTTP 503, never fake success.
 
