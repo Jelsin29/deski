@@ -1,7 +1,7 @@
 # Deski
 
 Deski is a group course project exploring an AI-assisted desktop application.
-This delivery contains foundations only: an Electron/TypeScript desktop shell,
+This delivery contains foundations only: an Electron/TypeScript desktop UI,
 local FastAPI HTTP contracts, generated API types, and contribution documentation. It is not a
 working AI assistant or a finished course submission.
 
@@ -13,10 +13,10 @@ working AI assistant or a finished course submission.
 - [Contributing and team workflow](CONTRIBUTING.md)
 - [AI usage, challenges, and solutions](docs/ai-usage.md)
 
-The initial independent foundation PRs are merged. The backend-contract delivery
-and its dependent tooling/types delivery form a new stacked chain: contracts
-first, tooling second, ultimately targeting `main`. Review and merge decisions
-belong to the human team.
+The desktop UI includes local chat history, streamed responses, document upload,
+provider and API key settings, and an opt-in fake backend for demonstrations.
+Backend history and token status contracts are connected to the UI; their
+services must still be implemented for live use.
 
 - [Shared development, type generation, and wheel tooling](docs/development-tooling.md)
 
@@ -29,12 +29,16 @@ From the repository root:
 
 ```sh
 npm ci
+npm run typecheck
+npm test
+npm run build
 npm run dev
 ```
 
-`npm run dev` coordinates a loopback backend and the existing desktop build/launch.
-It does **not** connect Electron to the backend. Ctrl-C or either child exiting
-stops the other process tree. Use `npm run dev:desktop` for desktop-only development.
+`npm run dev` coordinates a loopback backend and the desktop build/launch.
+The desktop calls that backend through its IPC bridge; the backend services
+still return 503 until implemented. Ctrl-C or either child exiting stops the
+other process tree. Use `npm run dev:desktop` for desktop-only development.
 
 The pinned Electron package acquires its native binary lazily on first launch,
 which may require network access. Development compiles once and opens the built
@@ -53,7 +57,8 @@ uv run --locked uvicorn app.main:app --host 127.0.0.1 --port 8000
 Stop with Ctrl-C. `GET http://127.0.0.1:8000/api/v1/health` returns HTTP 200
 and `{"status":"ok"}`; development API docs are at `/docs`. Keep this
 unauthenticated server on loopback. No secrets or environment variables are
-needed. The desktop executable itself does **not** start or connect to the backend.
+needed. The desktop executable does not start the backend; it connects to a
+separately running loopback server.
 Unwired teammate-owned Chat, Document, Settings, and Token services deliberately
 return HTTP 503, never fake success.
 
@@ -61,14 +66,14 @@ return HTTP 503, never fake success.
 
 | Available foundation | Planned, not implemented |
 | --- | --- |
-| Local Electron window and static TypeScript page | Preload/IPC bridge and backend process management |
+| Electron chat UI with a validated preload/IPC bridge to the backend | Desktop-managed backend process startup |
 | FastAPI contracts, liveness, and in-process tests | SQLite persistence, schema changes, and application services |
 | Generated OpenAPI TypeScript types and Python wheel build | Standalone backend executable and installers |
 | Type checks, renderer tests, backend tests and Ruff checks | AI integrations, RAG, authentication, and desktop control |
 
-Compile/test setup was checked on macOS, not a running Electron window.
-Windows and Linux are unverified; desktop runtime, accessibility, and integration
-remain unverified too. The build emits code/assets, not an installer. There is
+The desktop was launched on macOS against the fake API. Windows and Linux are
+unverified; live backend integration remains unverified. The build emits
+code/assets, not an installer. There is
 no installer packaging, signing, or CI configuration. The backend wheel is a
 Python package, not a standalone executable. See each app README for exact limits.
 

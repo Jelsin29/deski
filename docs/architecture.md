@@ -1,16 +1,16 @@
 # Architecture: foundation and next boundaries
 
-The current foundation has two separate applications. They do not communicate
-with each other yet. A root developer convenience command can start both; this
-is not desktop-managed backend integration.
+The current foundation has two separate applications. The desktop calls the
+loopback backend through its IPC bridge, while a root development command can
+start both. The desktop does not manage the backend process lifecycle.
 
 ## Current responsibilities
 
 | Location | Implemented responsibility |
 | --- | --- |
-| `apps/desktop/src/main/main.ts` | Electron window lifecycle; loads built local HTML |
-| `apps/desktop/src/renderer/` | Static, framework-free TypeScript UI |
-| `apps/desktop/src/renderer/pages/` | Concrete scaffold page and safe title rendering |
+| `apps/desktop/src/main/` | Electron window lifecycle, validated IPC handlers, backend HTTP client and opt-in fake API |
+| `apps/desktop/src/preload/` | Narrow typed `window.deski` bridge over IPC |
+| `apps/desktop/src/renderer/` | Framework-free TypeScript chat UI (features, Atomic Design components, pages) |
 | `apps/backend/app/main.py` | FastAPI application composition and router registration |
 | `apps/backend/app/api/v1/` | Health and Chat/Document/Settings/Token contracts; unwired services return 503 |
 | `packages/api-types/` | Generated declarations from public `app.openapi()` |
@@ -18,16 +18,17 @@ is not desktop-managed backend integration.
 | `docs/` | Architecture and AI-use records |
 
 Electron main is privileged; the renderer must remain separate from Node.js and
-operating-system APIs. The scaffold enables sandboxing and context isolation,
+operating-system APIs. The window enables sandboxing and context isolation,
 disables Node integration, and denies navigation, new windows, and permissions.
-Its CSP keeps content local and denies network connections. There is no preload,
-IPC bridge, or renderer/backend connection. See the
+Its CSP keeps content local and denies network connections: the renderer reaches
+the backend only through the preload bridge, whose IPC payloads the main process
+validates before forwarding them over HTTP. See the
 [desktop contract](../apps/desktop/README.md) for controls and verification limits.
 
-Atomic Design applies to **UI composition**, not the backend. Only the page tier
-is warranted now; native HTML provides basic atoms. Add custom atoms, molecules,
-organisms, or templates when actual reuse/composition needs them. Five empty
-mandatory folders are not architecture. Lower-level UI tiers must not import pages.
+Atomic Design applies to **UI composition**, not the backend. The chat UI now
+has real reuse, so it uses atoms (icons, buttons), molecules (attachment chips,
+messages, notices), organisms (sidebar, composer, message list) and pages.
+Lower-level UI tiers must not import pages.
 
 FastAPI exposes `GET /api/v1/health` as liveness, not database or AI readiness.
 Routes belong in the versioned API layer; future use cases belong in services.
@@ -37,10 +38,7 @@ for desktop integration, and the scaffold must not be exposed to a network.
 
 ## Planned architecture — not implemented
 
-A future preload would expose a narrow, typed API through an isolated bridge,
-not raw Node.js, shell, or unrestricted IPC access. Before adding it, define
-message validation, caller authorization, and error handling. Desktop-managed
-backend startup is also future work: define ownership, loopback binding,
+Desktop-managed backend startup is future work: define ownership, loopback binding,
 readiness checks, bounded startup/shutdown, crash handling, and cleanup so child
 processes do not outlive the app. A health response alone is not an integration
 security design. Today `npm run dev` only coordinates development processes;

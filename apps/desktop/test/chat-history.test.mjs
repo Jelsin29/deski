@@ -5,6 +5,8 @@ import {
   createChat,
   deriveTitle,
   groupByRecency,
+  mergeRemoteChats,
+  withRemoteMessages,
   withRemoteId,
 } from '../src/renderer/features/chat/chat-history.ts';
 
@@ -15,6 +17,21 @@ test('derives a single-line, length-limited title from the first message', () =>
   const title = deriveTitle('a'.repeat(80));
   assert.equal(title.length, 48);
   assert.ok(title.endsWith('…'));
+});
+
+test('adds remote chats without duplicating locally known conversations', () => {
+  const local = withRemoteId(chatAt('local', '2026-11-10T10:00:00Z'), 'remote');
+  const merged = mergeRemoteChats([local], [
+    { chat_id: 'remote', title: 'Updated', updated_at: '2026-11-11T10:00:00Z' },
+    { chat_id: 'other', title: 'Other', updated_at: '2026-11-09T10:00:00Z' },
+  ]);
+  assert.deepEqual(merged.map(({ id }) => id), ['local', 'other']);
+  assert.equal(merged[0].title, 'Updated');
+  const loaded = withRemoteMessages(merged[1], [{
+    message_id: 'm1', role: 'user', content: 'Hello', created_at: '2026-11-09T10:00:00Z',
+    documents: [{ document_id: 'd1', document_name: 'note.txt' }],
+  }]);
+  assert.deepEqual(loaded.messages[0].attachments, [{ name: 'note.txt', size: 0 }]);
 });
 
 test('appending a message returns a new chat and updates its timestamp', () => {

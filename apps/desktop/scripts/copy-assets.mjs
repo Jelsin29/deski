@@ -1,8 +1,14 @@
-import { copyFile } from 'node:fs/promises';
+import { cp } from 'node:fs/promises';
 
-for (const asset of ['index.html', 'styles.css']) {
-  await copyFile(
-    new URL(`../src/renderer/${asset}`, import.meta.url),
-    new URL(`../dist/renderer/${asset}`, import.meta.url),
-  );
+// tsc only emits JavaScript; static renderer files are copied next to it.
+const copies = [
+  ['src/renderer/index.html', 'dist/renderer/index.html'],
+  ['src/renderer/styles', 'dist/renderer/styles'],
+  ['assets/logo.svg', 'dist/renderer/assets/logo.svg'],
+];
+
+for (const [source, target] of copies) {
+  await cp(new URL(`../${source}`, import.meta.url), new URL(`../${target}`, import.meta.url), {
+    recursive: true,
+  });
 }

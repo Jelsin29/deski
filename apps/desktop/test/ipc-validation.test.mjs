@@ -10,21 +10,26 @@ import {
 } from '../src/main/ipc-validation.ts';
 
 test('accepts chat requests with or without a chat id', () => {
-  assert.deepEqual(parseChatRequest({ message: 'Selam' }), { message: 'Selam', chat_id: null });
-  assert.deepEqual(parseChatRequest({ message: 'Selam', chat_id: 'c1' }), { message: 'Selam', chat_id: 'c1' });
+  assert.deepEqual(parseChatRequest({ message: 'Selam' }), { message: 'Selam', chat_id: null, document_ids: [] });
+  assert.deepEqual(parseChatRequest({ message: 'Selam', chat_id: 'c1', document_ids: ['d1'] }), {
+    message: 'Selam', chat_id: 'c1', document_ids: ['d1'],
+  });
 });
 
 test('rejects blank, oversized or malformed chat requests', () => {
   assert.equal(parseChatRequest({ message: '   ' }), null);
   assert.equal(parseChatRequest({ message: 'x'.repeat(LIMITS.message + 1) }), null);
   assert.equal(parseChatRequest({ message: 'Selam', chat_id: 42 }), null);
+  assert.equal(parseChatRequest({ message: 'Selam', document_ids: [''] }), null);
+  assert.equal(parseChatRequest({ message: 'Selam', document_ids: 'd1' }), null);
+  assert.equal(parseChatRequest({ message: 'Selam', document_ids: null }), null);
   assert.equal(parseChatRequest('Selam'), null);
 });
 
 test('requires a stream id around a valid chat request', () => {
   assert.deepEqual(parseChatStreamRequest({ streamId: 's1', chat: { message: 'Selam' } }), {
     streamId: 's1',
-    chat: { message: 'Selam', chat_id: null },
+    chat: { message: 'Selam', chat_id: null, document_ids: [] },
   });
   assert.equal(parseChatStreamRequest({ chat: { message: 'Selam' } }), null);
   assert.equal(parseChatStreamRequest({ streamId: 's1', chat: { message: '' } }), null);

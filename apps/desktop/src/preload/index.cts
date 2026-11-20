@@ -38,6 +38,10 @@ const api: DeskiApi = {
   getSettings: () => invoke('settings:get'),
   updateSettings: (patch) => invoke('settings:update', patch),
   saveToken: (update) => invoke('tokens:save', update),
+  getTokenStatus: () => invoke('tokens:status'),
+  listChats: () => invoke('chats:list'),
+  getChatMessages: (chatId) => invoke('chats:messages', chatId),
+  deleteChat: (chatId) => invoke('chats:delete', chatId),
 };
 
 contextBridge.exposeInMainWorld('deski', api);

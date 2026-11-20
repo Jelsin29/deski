@@ -39,16 +39,19 @@ export function createFakeBackendClient({ wordDelayMs = 35 }: FakeBackendOptions
   let settings: Settings = { provider: 'anthropic', model: 'claude-sonnet-5-5' };
   let documentCount = 0;
   let chatCount = 0;
+  const configuredTokens = new Set<string>();
+  const documentNames = new Map<string, string>();
   let messageCount = 0;
   const documentsByChat = new Map<string, string[]>();
-  // Documents are uploaded before their message, so they wait here until the chat is known.
-  let unassignedDocuments: string[] = [];
 
-  function reply(message: string, chatId: string | null | undefined): ChatResponse {
+  function reply(message: string, chatId: string | null | undefined, documentIds: string[] = []): ChatResponse {
     const id = chatId ?? `demo-chat-${++chatCount}`;
-    const documents = [...(documentsByChat.get(id) ?? []), ...unassignedDocuments];
+    const documents = [...(documentsByChat.get(id) ?? []),
+      ...documentIds.flatMap((documentId) => {
+        const name = documentNames.get(documentId);
+        return name === undefined ? [] : [name];
+      })];
     documentsByChat.set(id, documents);
-    unassignedDocuments = [];
     return {
       chat_id: id,
       message_id: `demo-message-${++messageCount}`,
@@ -58,9 +61,9 @@ export function createFakeBackendClient({ wordDelayMs = 35 }: FakeBackendOptions
 
   return {
     health: async () => ok({ status: 'ok' }),
-    sendMessage: async ({ message, chat_id }) => ok(reply(message, chat_id)),
-    async streamMessage({ message, chat_id }, onDelta) {
-      const response = reply(message, chat_id);
+    sendMessage: async ({ message, chat_id, document_ids }) => ok(reply(message, chat_id, document_ids)),
+    async streamMessage({ message, chat_id, document_ids }, onDelta) {
+      const response = reply(message, chat_id, document_ids);
       for (const chunk of splitIntoChunks(response.message)) {
         await wait(wordDelayMs);
         onDelta(chunk);
@@ -68,14 +71,24 @@ export function createFakeBackendClient({ wordDelayMs = 35 }: FakeBackendOptions
       return ok(response);
     },
     async uploadDocument({ document_name }) {
-      unassignedDocuments = [...unassignedDocuments, document_name];
-      return ok({ document_id: `demo-document-${++documentCount}`, document_name });
+      const documentId = `demo-document-${++documentCount}`;
+      documentNames.set(documentId, document_name);
+      return ok({ document_id: documentId, document_name });
     },
     getSettings: async () => ok(settings),
     async updateSettings(patch) {
       settings = { ...settings, ...patch };
       return ok(settings);
     },
-    saveToken: async ({ provider }) => ok({ provider, configured: true }),
+    async saveToken({ provider }) {
+      configuredTokens.add(provider);
+      return ok({ provider, configured: true });
+    },
+    getTokenStatus: async () => ok((['anthropic', 'openai'] as const).map((provider) => ({
+      provider, configured: configuredTokens.has(provider),
+    }))),
+    listChats: async () => ok([]),
+    getChatMessages: async () => ok([]),
+    deleteChat: async () => ok(undefined),
   };
 }

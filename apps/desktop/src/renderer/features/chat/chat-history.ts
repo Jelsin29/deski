@@ -1,3 +1,5 @@
+import type { ChatSummary, HistoryMessage } from '../../../shared/deski-api.js';
+
 // Pure chat model operations. Every function returns new objects so the UI
 // can compare and persist snapshots safely.
 
@@ -64,6 +66,41 @@ export function appendMessage(chat: Chat, message: ChatMessage): Chat {
 
 export function withRemoteId(chat: Chat, remoteId: string): Chat {
   return { ...chat, remoteId };
+}
+
+/** Keep local drafts while adding conversations found on the backend. */
+export function mergeRemoteChats(local: readonly Chat[], summaries: readonly ChatSummary[]): Chat[] {
+  const merged = [...local];
+  for (const summary of summaries) {
+    const index = merged.findIndex((chat) => chat.remoteId === summary.chat_id);
+    if (index >= 0) {
+      const chat = merged[index]!;
+      merged[index] = { ...chat, title: summary.title, updatedAt: chat.updatedAt > summary.updated_at ? chat.updatedAt : summary.updated_at };
+    } else {
+      merged.push({
+        id: summary.chat_id,
+        remoteId: summary.chat_id,
+        title: summary.title,
+        createdAt: summary.updated_at,
+        updatedAt: summary.updated_at,
+        messages: [],
+      });
+    }
+  }
+  return sortByRecent(merged);
+}
+
+export function withRemoteMessages(chat: Chat, messages: readonly HistoryMessage[]): Chat {
+  return {
+    ...chat,
+    messages: messages.map((message) => ({
+      id: message.message_id,
+      role: message.role,
+      content: message.content,
+      createdAt: message.created_at,
+      attachments: message.documents.map((document) => ({ name: document.document_name, size: 0 })),
+    })),
+  };
 }
 
 export function sortByRecent(chats: readonly Chat[]): Chat[] {

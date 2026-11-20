@@ -1,5 +1,5 @@
-import { renderScaffoldPage } from './pages/scaffold-page.js';
+import { createApp } from './app.ts';
 
 const root = document.getElementById('app');
-if (!root) throw new Error('The scaffold requires an #app root element.');
-root.innerHTML = renderScaffoldPage('Deski');
+if (!root) throw new Error('Deski requires an #app root element.');
+createApp(root, window.deski, window.localStorage);
