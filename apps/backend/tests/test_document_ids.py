@@ -14,7 +14,7 @@ def test_document_ids_delegation_and_rejection():
             if "unknown" in payload.document_ids:
                 raise HTTPException(422, "Unknown document ID")
             stored.append(payload.message)
-            return {"chat_id": "c", "message": "Reply"}
+            return {"chat_id": "c", "message_id": "m1", "message": "Reply"}
 
     app.dependency_overrides[get_chat_service] = lambda: Chat()
     try:
@@ -25,7 +25,11 @@ def test_document_ids_delegation_and_rejection():
         ]:
             response = request("POST", "/chat", json={"message": "Hi", **extra})
             assert response.status_code == 200
-            assert response.json() == {"chat_id": "c", "message": "Reply"}
+            assert response.json() == {
+                "chat_id": "c",
+                "message_id": "m1",
+                "message": "Reply",
+            }
             assert calls[-1] == expected
         for ids in [None, "d7", [""], [" "], ["x" * 129], [123]]:
             response = request(

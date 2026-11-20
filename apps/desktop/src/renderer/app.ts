@@ -179,7 +179,7 @@ export function createApp(root: HTMLElement, api: DeskiApi, storage: Storage): v
     const latest = findChat(chat.id);
     if (latest) {
       const reply: ChatMessage = {
-        id: crypto.randomUUID(),
+        id: result.ok ? result.data.message_id : crypto.randomUUID(),
         role: 'assistant',
         content: result.ok ? result.data.message : errorMessage(result.error),
         createdAt: new Date().toISOString(),

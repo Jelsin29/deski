@@ -12,7 +12,7 @@ provider calls, authentication, or credential verification is implemented.
 | Method and path | Request | Success (HTTP 200, injected service only) |
 | --- | --- | --- |
 | `GET /health` | None | `{"status":"ok"}` |
-| `POST /chat` | Required `message: string`; optional `chat_id: string or null` (default null), `document_ids: string[]` (default []) | `chat_id: string`, `message: string` |
+| `POST /chat` | Required `message: string`; optional `chat_id: string or null` (default null), `document_ids: string[]` (default []) | `chat_id: string`, `message_id: string`, `message: string` |
 | `POST /chat/stream` | Same `ChatRequest` as POST /chat | SSE `start`, `delta*`, `done` or `error` |
 | `GET /chats` | None | `ChatSummary[]`, newest updated first |
 | `GET /chats/{chat_id}/messages` | Opaque chat ID | `HistoryMessage[]`, oldest created first |
@@ -53,8 +53,9 @@ only declared fields.
 
 ## History and document association seams
 
-`ChatSummary` has `chat_id`, `title` (empty allowed, at most 80 characters), and
-`updated_at`. `HistoryMessage` has `message_id`, `role` (`user` or `assistant`),
+`ChatSummary` has `chat_id`, `title` (empty allowed, at most 80 characters),
+`created_at`, and `updated_at`. `HistoryMessage` has `message_id`, `role`
+(`user` or `assistant`),
 `content` (same bounds as message), `created_at`, and required `documents` array
 of `{document_id, document_name}`. Empty collections return `[]`. The HTTP history
 adapter validates service results, normalizes timezone-aware dates to UTC ISO8601
@@ -63,7 +64,9 @@ ascending by created time. Equal timestamps retain service order. Naive dates
 and invalid response fields fail with the ordinary safe 500 response.
 
 Services raise 404 `{"detail":"Chat not found"}` for missing history/deletion
-chats. Deletion delegates once and returns 204 without a body: the service owns
+chats. `POST /chat` also declares a 404 response with a string `detail` for
+service-reported missing chats. Deletion delegates once and returns 204 without a
+body: the service owns
 removing messages and associations, never documents or user files. The service
 also owns persistent, non-AI title generation from the first message (max 80).
 No deletion, generation or persistence is implemented here.

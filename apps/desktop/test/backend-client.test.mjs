@@ -75,7 +75,7 @@ test('reads SSE frames across network chunks and returns the assembled reply', a
 
   const result = await client.streamMessage({ message: 'Selam', chat_id: null, document_ids: ['d1'] }, (delta) => deltas.push(delta));
 
-  assert.deepEqual(result, { ok: true, data: { chat_id: 'c1', message: 'Tam yanıt' } });
+  assert.deepEqual(result, { ok: true, data: { chat_id: 'c1', message_id: 'm1', message: 'Tam yanıt' } });
   assert.deepEqual(deltas, ['Tam ', 'yanıt']);
 });
 

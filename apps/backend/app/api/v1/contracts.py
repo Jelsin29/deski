@@ -44,6 +44,7 @@ class ChatRequest(RequestModel):
 
 class ChatResponse(BaseModel):
     chat_id: OpaqueId
+    message_id: OpaqueId
     message: NonblankMessage
 
 
@@ -108,6 +109,7 @@ class HistoryTimestamp(BaseModel):
 class ChatSummary(HistoryTimestamp):
     chat_id: OpaqueId
     title: str = Field(max_length=80)
+    created_at: AwareDatetime
     updated_at: AwareDatetime
 
 

@@ -41,6 +41,7 @@ export function createFakeBackendClient({ wordDelayMs = 35 }: FakeBackendOptions
   let chatCount = 0;
   const configuredTokens = new Set<string>();
   const documentNames = new Map<string, string>();
+  let messageCount = 0;
   const documentsByChat = new Map<string, string[]>();
 
   function reply(message: string, chatId: string | null | undefined, documentIds: string[] = []): ChatResponse {
@@ -51,7 +52,11 @@ export function createFakeBackendClient({ wordDelayMs = 35 }: FakeBackendOptions
         return name === undefined ? [] : [name];
       })];
     documentsByChat.set(id, documents);
-    return { chat_id: id, message: composeDemoReply(message, documents) };
+    return {
+      chat_id: id,
+      message_id: `demo-message-${++messageCount}`,
+      message: composeDemoReply(message, documents),
+    };
   }
 
   return {

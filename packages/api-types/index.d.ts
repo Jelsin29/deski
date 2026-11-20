@@ -193,11 +193,18 @@ export interface components {
             chat_id: string;
             /** Message */
             message: string;
+            /** Message Id */
+            message_id: string;
         };
         /** ChatSummary */
         ChatSummary: {
             /** Chat Id */
             chat_id: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
             /** Title */
             title: string;
             /**
@@ -365,6 +372,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ChatResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
             /** @description Unprocessable Entity */

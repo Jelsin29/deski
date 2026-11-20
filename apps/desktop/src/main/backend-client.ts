@@ -114,7 +114,7 @@ export function createBackendClient(
             message += data.text;
             onDelta(data.text);
           } else if (eventLine === 'event: done' && chatId !== null && 'message_id' in data && typeof data.message_id === 'string') {
-            return { ok: true, data: { chat_id: chatId, message } };
+            return { ok: true, data: { chat_id: chatId, message_id: data.message_id, message } };
           } else if (eventLine === 'event: error' && 'detail' in data && typeof data.detail === 'string') {
             return streamFailure(data.detail);
           } else {
