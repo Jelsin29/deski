@@ -9,6 +9,7 @@ import type {
 import type { BackendClient } from './backend-client.ts';
 import {
   parseChatStreamRequest,
+  parseChatId,
   parseDocumentRequest,
   parseSettingsPatch,
   parseTokenUpdate,
@@ -57,4 +58,8 @@ export function registerIpcHandlers(backend: BackendClient): void {
   handle('settings:get', noPayload, () => backend.getSettings());
   handle('settings:update', parseSettingsPatch, (patch) => backend.updateSettings(patch));
   handle('tokens:save', parseTokenUpdate, (update) => backend.saveToken(update));
+  handle('tokens:status', noPayload, () => backend.getTokenStatus());
+  handle('chats:list', noPayload, () => backend.listChats());
+  handle('chats:messages', parseChatId, (id) => backend.getChatMessages(id));
+  handle('chats:delete', parseChatId, (id) => backend.deleteChat(id));
 }

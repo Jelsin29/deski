@@ -39,6 +39,7 @@ export function createFakeBackendClient({ wordDelayMs = 35 }: FakeBackendOptions
   let settings: Settings = { provider: 'anthropic', model: 'claude-sonnet-5-5' };
   let documentCount = 0;
   let chatCount = 0;
+  const configuredTokens = new Set<string>();
   const documentNames = new Map<string, string>();
   const documentsByChat = new Map<string, string[]>();
 
@@ -74,6 +75,15 @@ export function createFakeBackendClient({ wordDelayMs = 35 }: FakeBackendOptions
       settings = { ...settings, ...patch };
       return ok(settings);
     },
-    saveToken: async ({ provider }) => ok({ provider, configured: true }),
+    async saveToken({ provider }) {
+      configuredTokens.add(provider);
+      return ok({ provider, configured: true });
+    },
+    getTokenStatus: async () => ok((['anthropic', 'openai'] as const).map((provider) => ({
+      provider, configured: configuredTokens.has(provider),
+    }))),
+    listChats: async () => ok([]),
+    getChatMessages: async () => ok([]),
+    deleteChat: async () => ok(undefined),
   };
 }

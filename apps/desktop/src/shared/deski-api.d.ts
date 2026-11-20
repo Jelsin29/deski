@@ -7,6 +7,8 @@ type Schemas = components['schemas'];
 export type Provider = Schemas['Provider'];
 export type ChatRequest = Schemas['ChatRequest'];
 export type ChatResponse = Schemas['ChatResponse'];
+export type ChatSummary = Schemas['ChatSummary'];
+export type HistoryMessage = Schemas['HistoryMessage'];
 export type DocumentRequest = Schemas['DocumentRequest'];
 export type DocumentResponse = Schemas['DocumentResponse'];
 export type Settings = Schemas['SettingsResponse'];
@@ -62,6 +64,10 @@ export interface IpcContract {
   'settings:get': { request: undefined; response: ApiResult<Settings> };
   'settings:update': { request: SettingsPatch; response: ApiResult<Settings> };
   'tokens:save': { request: TokenUpdate; response: ApiResult<TokenResponse> };
+  'tokens:status': { request: undefined; response: ApiResult<TokenResponse[]> };
+  'chats:list': { request: undefined; response: ApiResult<ChatSummary[]> };
+  'chats:messages': { request: string; response: ApiResult<HistoryMessage[]> };
+  'chats:delete': { request: string; response: ApiResult<void> };
 }
 
 export type IpcChannel = keyof IpcContract;
@@ -80,4 +86,8 @@ export interface DeskiApi {
   getSettings(): Promise<ApiResult<Settings>>;
   updateSettings(patch: SettingsPatch): Promise<ApiResult<Settings>>;
   saveToken(update: TokenUpdate): Promise<ApiResult<TokenResponse>>;
+  getTokenStatus(): Promise<ApiResult<TokenResponse[]>>;
+  listChats(): Promise<ApiResult<ChatSummary[]>>;
+  getChatMessages(chatId: string): Promise<ApiResult<HistoryMessage[]>>;
+  deleteChat(chatId: string): Promise<ApiResult<void>>;
 }

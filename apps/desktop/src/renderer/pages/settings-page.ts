@@ -15,7 +15,7 @@ import { tr } from '../i18n/tr.ts';
 
 type SettingsApi = Pick<
   DeskiApi,
-  'backendMode' | 'checkHealth' | 'getSettings' | 'updateSettings' | 'saveToken'
+  'backendMode' | 'checkHealth' | 'getSettings' | 'updateSettings' | 'saveToken' | 'getTokenStatus'
 >;
 
 export interface SettingsPageOptions {
@@ -60,10 +60,12 @@ async function whileBusy(button: HTMLButtonElement, action: () => Promise<void>)
 
 export function createSettingsPage(api: SettingsApi, options: SettingsPageOptions): SettingsPageView {
   let provider: Provider = DEFAULT_PROVIDER;
+  let tokenStates: Partial<Record<Provider, boolean>> = {};
 
   const backendBadge = h('span', { className: 'status-badge' });
   const providerStatus = h('div', { className: 'form-status' });
   const tokenStatus = h('div', { className: 'form-status' });
+  const tokenConfigured = h('p', { className: 'field__hint' });
 
   // Provider and model
   const providerInputs = PROVIDERS.map((option) =>
@@ -123,6 +125,7 @@ export function createSettingsPage(api: SettingsApi, options: SettingsPageOption
     h('div', { className: 'field' }, [
       h('label', { className: 'field__label', text: tr.settings.token.label, attrs: { for: 'token-input' } }),
       tokenInput,
+      tokenConfigured,
     ]),
     h('div', { className: 'form-actions' }, [tokenSave, tokenStatus]),
   ]);
@@ -161,6 +164,7 @@ export function createSettingsPage(api: SettingsApi, options: SettingsPageOption
     modelInput.value = modelForProvider(id, model);
     modelOptions.replaceChildren(...providerOption(id).models.map((name) => h('option', { attrs: { value: name } })));
     tokenDescription.textContent = tr.settings.token.description(providerOption(id).name);
+    tokenConfigured.textContent = tokenStates[id] ? tr.settings.token.configured : tr.settings.token.missing;
   }
 
   function setBackendBadge(state: 'checking' | 'connected' | 'disconnected' | 'fake'): void {
@@ -180,10 +184,15 @@ export function createSettingsPage(api: SettingsApi, options: SettingsPageOption
 
   function saveToken(event: SubmitEvent): void {
     event.preventDefault();
+    const selectedProvider = provider;
     void whileBusy(tokenSave, async () => {
-      const result = await api.saveToken({ provider, apiKey: tokenInput.value });
-      if (result.ok) tokenInput.value = '';
-      const providerName = providerOption(provider).name;
+      const result = await api.saveToken({ provider: selectedProvider, apiKey: tokenInput.value });
+      if (result.ok) {
+        tokenInput.value = '';
+        tokenStates[selectedProvider] = result.data.configured;
+        selectProvider(provider);
+      }
+      const providerName = providerOption(selectedProvider).name;
       tokenStatus.replaceChildren(
         result.ok ? notice('success', tr.settings.token.saved(providerName)) : notice('error', errorMessage(result.error)),
       );
@@ -195,7 +204,8 @@ export function createSettingsPage(api: SettingsApi, options: SettingsPageOption
     tokenStatus.replaceChildren();
     setBackendBadge('checking');
 
-    const [health, settings] = await Promise.all([api.checkHealth(), api.getSettings()]);
+    const [health, settings, tokens] = await Promise.all([api.checkHealth(), api.getSettings(), api.getTokenStatus()]);
+    if (tokens.ok) tokenStates = Object.fromEntries(tokens.data.map((item) => [item.provider, item.configured]));
     if (api.backendMode === 'fake') setBackendBadge('fake');
     else setBackendBadge(health.ok ? 'connected' : 'disconnected');
     if (settings.ok) {
@@ -203,6 +213,7 @@ export function createSettingsPage(api: SettingsApi, options: SettingsPageOption
     } else {
       providerStatus.replaceChildren(notice('warning', errorMessage(settings.error)));
     }
+    if (!tokens.ok) tokenConfigured.textContent = errorMessage(tokens.error);
   }
 
   selectProvider(provider);

@@ -24,6 +24,11 @@ Electron package downloads its native binary on first launch. There is no hot
 reload: close the app and run the command again after changes. `npm run build`
 emits code and assets into `apps/desktop/dist/`; it does not produce an installer.
 
+For a clean build, install Node.js 22 and npm 10, then run `npm ci`,
+`npm run typecheck`, `npm test`, and `npm run build` from the repository root.
+Launch with `npm run dev:desktop` when the backend is running, or
+`npm run dev:fake` for a UI demonstration. Packaging and signing are separate.
+
 ### Fake API (`dev:fake`)
 
 The backend services still return 503 until teammates wire them. To build and
@@ -61,13 +66,16 @@ Every call resolves to an `ApiResult` (`ok` or a typed error) instead of throwin
 because exceptions lose their details across IPC. Streamed replies arrive as
 `chat:chunk` events tagged with a stream id.
 
-The UI stores history in `localStorage` behind the small `ChatStore` interface;
-the backend history endpoints exist but are not connected to this UI yet. Files
+The UI keeps local history in `localStorage` and loads backend chat summaries
+when available. Selecting a remote chat loads its messages; deleting it calls
+the backend before removing it locally. If history is offline or returns 503,
+local chats remain usable. Files
 are read as text in the renderer and sent to `POST /documents` as content (at
 most 1,000,000 characters), because the backend contract never accepts
 filesystem paths. Their returned document IDs are included in the chat request.
 The real client reads `POST /chat/stream` SSE frames and forwards each delta to
-the renderer. Backend services still return 503 until they are wired.
+the renderer. Settings reads token configuration status without exposing keys.
+Backend services still return 503 until they are wired.
 
 ## Design system
 

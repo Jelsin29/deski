@@ -34,6 +34,27 @@ test('saves tokens under the provider path with the backend field name', async (
   assert.equal(calls[0].init.body, JSON.stringify({ api_key: 'secret' }));
 });
 
+test('reads history and token metadata and accepts an empty delete response', async () => {
+  const calls = [];
+  const fetchImpl = async (url, init) => {
+    calls.push([url, init.method]);
+    if (init.method === 'DELETE') return new Response(null, { status: 204 });
+    return Response.json([]);
+  };
+  const client = createBackendClient('http://backend.test', fetchImpl);
+
+  assert.deepEqual(await client.listChats(), { ok: true, data: [] });
+  assert.deepEqual(await client.getChatMessages('id/1'), { ok: true, data: [] });
+  assert.deepEqual(await client.getTokenStatus(), { ok: true, data: [] });
+  assert.deepEqual(await client.deleteChat('id/1'), { ok: true, data: undefined });
+  assert.deepEqual(calls, [
+    ['http://backend.test/api/v1/chats', 'GET'],
+    ['http://backend.test/api/v1/chats/id%2F1/messages', 'GET'],
+    ['http://backend.test/api/v1/tokens', 'GET'],
+    ['http://backend.test/api/v1/chats/id%2F1', 'DELETE'],
+  ]);
+});
+
 test('reads SSE frames across network chunks and returns the assembled reply', async () => {
   const frames = 'event: start\ndata: {"chat_id":"c1"}\n\nevent: delta\ndata: {"text":"Tam "}\n\nevent: delta\ndata: {"text":"yanıt"}\n\nevent: done\ndata: {"message_id":"m1"}\n\n';
   const chunks = [frames.slice(0, 37), frames.slice(37, 75), frames.slice(75)];

@@ -31,6 +31,10 @@ function isText(value: unknown, maxLength: number): value is string {
   return typeof value === 'string' && value.length <= maxLength && value.trim().length > 0;
 }
 
+export function parseChatId(input: unknown): string | null {
+  return isText(input, LIMITS.id) ? input : null;
+}
+
 function isProvider(value: unknown): value is Provider {
   return PROVIDERS.includes(value as Provider);
 }

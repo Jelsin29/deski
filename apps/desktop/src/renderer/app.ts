@@ -5,6 +5,8 @@ import { h } from './dom.ts';
 import {
   appendMessage,
   createChat,
+  mergeRemoteChats,
+  withRemoteMessages,
   withRemoteId,
   type Chat,
   type ChatMessage,
@@ -47,7 +49,7 @@ export function createApp(root: HTMLElement, api: DeskiApi, storage: Storage): v
   const sidebar = createSidebar({
     onNewChat: startNewChat,
     onSelectChat: (chatId) => showChat(chatId),
-    onDeleteChat: deleteChat,
+    onDeleteChat: (chatId) => void deleteChat(chatId),
     onOpenSettings: openSettings,
   });
   const chatPage = createChatPage(
@@ -68,6 +70,7 @@ export function createApp(root: HTMLElement, api: DeskiApi, storage: Storage): v
   ]);
   root.replaceChildren(shell);
   render();
+  if (api.backendMode === 'live') void loadRemoteChats();
 
   function findChat(chatId: string | null): Chat | null {
     return chats.find((chat) => chat.id === chatId) ?? null;
@@ -98,6 +101,24 @@ export function createApp(root: HTMLElement, api: DeskiApi, storage: Storage): v
     view = 'chat';
     render();
     chatPage.focusComposer();
+    const chat = findChat(chatId);
+    if (chat?.remoteId && pendingChatId !== chat.id) void loadRemoteMessages(chat);
+  }
+
+  async function loadRemoteChats(): Promise<void> {
+    const result = await api.listChats();
+    if (!result.ok) return;
+    chats = mergeRemoteChats(chats, result.data);
+    chatStore.save(chats);
+    render();
+  }
+
+  async function loadRemoteMessages(chat: Chat): Promise<void> {
+    if (!chat.remoteId) return;
+    const result = await api.getChatMessages(chat.remoteId);
+    if (!result.ok || !findChat(chat.id) || pendingChatId === chat.id) return;
+    saveChat(withRemoteMessages(findChat(chat.id)!, result.data));
+    render();
   }
 
   function startNewChat(): void {
@@ -116,9 +137,16 @@ export function createApp(root: HTMLElement, api: DeskiApi, storage: Storage): v
     applyTheme();
   }
 
-  function deleteChat(chatId: string): void {
+  async function deleteChat(chatId: string): Promise<void> {
     const chat = findChat(chatId);
     if (!chat || !window.confirm(tr.sidebar.confirmDelete(chat.title))) return;
+    if (chat.remoteId && api.backendMode === 'live') {
+      const result = await api.deleteChat(chat.remoteId);
+      if (!result.ok && result.error.kind !== 'offline' && result.error.kind !== 'unavailable') {
+        window.alert(errorMessage(result.error));
+        return;
+      }
+    }
     chats = chats.filter(({ id }) => id !== chatId);
     chatStore.save(chats);
     if (activeChatId === chatId) activeChatId = null;

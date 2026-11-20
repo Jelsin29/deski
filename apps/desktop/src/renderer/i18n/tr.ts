@@ -63,6 +63,8 @@ export const tr = {
       label: 'API anahtarı',
       save: 'Anahtarı kaydet',
       saved: (provider: string) => `${provider} anahtarı kaydedildi.`,
+      configured: 'Anahtar kayıtlı.',
+      missing: 'Henüz anahtar kaydedilmedi.',
     },
     appearance: {
       title: 'Görünüm',

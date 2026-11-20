@@ -3,6 +3,8 @@ import type {
   ApiResult,
   ChatRequest,
   ChatResponse,
+  ChatSummary,
+  HistoryMessage,
   DocumentRequest,
   DocumentResponse,
   HealthStatus,
@@ -17,7 +19,7 @@ export const DEFAULT_BACKEND_URL = 'http://127.0.0.1:8000';
 // Model replies can be slow; a hung backend must still release the UI.
 const REQUEST_TIMEOUT_MS = 120_000;
 
-type HttpMethod = 'GET' | 'POST' | 'PATCH' | 'PUT';
+type HttpMethod = 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE';
 
 export interface BackendClient {
   health(): Promise<ApiResult<HealthStatus>>;
@@ -27,6 +29,10 @@ export interface BackendClient {
   getSettings(): Promise<ApiResult<Settings>>;
   updateSettings(patch: SettingsPatch): Promise<ApiResult<Settings>>;
   saveToken(update: TokenUpdate): Promise<ApiResult<TokenResponse>>;
+  getTokenStatus(): Promise<ApiResult<TokenResponse[]>>;
+  listChats(): Promise<ApiResult<ChatSummary[]>>;
+  getChatMessages(chatId: string): Promise<ApiResult<HistoryMessage[]>>;
+  deleteChat(chatId: string): Promise<ApiResult<void>>;
 }
 
 /** Talks to the local FastAPI backend; `fetchImpl` is injectable for tests. */
@@ -47,6 +53,7 @@ export function createBackendClient(
       return { ok: false, error: { kind: 'offline', status: null, detail: null } };
     }
 
+    if (response.status === 204) return { ok: true, data: undefined as T };
     const payload: unknown = await response.json().catch(() => null);
     if (response.ok) return { ok: true, data: payload as T };
     return { ok: false, error: toApiError(response.status, payload) };
@@ -134,6 +141,10 @@ export function createBackendClient(
     updateSettings: (patch) => request('PATCH', '/settings', patch),
     saveToken: ({ provider, apiKey }) =>
       request('PUT', `/tokens/${encodeURIComponent(provider)}`, { api_key: apiKey }),
+    getTokenStatus: () => request('GET', '/tokens'),
+    listChats: () => request('GET', '/chats'),
+    getChatMessages: (chatId) => request('GET', `/chats/${encodeURIComponent(chatId)}/messages`),
+    deleteChat: (chatId) => request('DELETE', `/chats/${encodeURIComponent(chatId)}`),
   };
 }
 
